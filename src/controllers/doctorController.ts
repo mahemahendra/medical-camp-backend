@@ -13,6 +13,17 @@ import fs from 'fs';
 // Get upload directory path
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
 
+// Helper to get the backend base URL from request
+const getBackendUrl = (req: AuthRequest): string => {
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
+  // Construct from request headers (works with proxies like Render)
+  const protocol = (req.headers['x-forwarded-proto'] as string) || 'https';
+  const host = (req.headers['x-forwarded-host'] as string) || (req.headers['host'] as string) || 'localhost:3000';
+  return `${protocol}://${host}`;
+};
+
 /**
  * Doctor controller - handles visitor search and consultation
  */
@@ -244,22 +255,24 @@ export const getVisitWithAttachments = async (req: AuthRequest, res: Response) =
     order: { createdAt: 'DESC' }
   });
 
+  const backendUrl = getBackendUrl(req);
+  
   // Ensure all attachment URLs are absolute static URLs
   const normalizedAttachments = attachments.map(attachment => {
     let fileUrl = attachment.fileUrl;
     
     // If it's a relative URL starting with /uploads/, make it absolute
     if (fileUrl.startsWith('/uploads/')) {
-      fileUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}${fileUrl}`;
+      fileUrl = `${backendUrl}${fileUrl}`;
     }
     // If it's an API URL, convert back to static URL
     else if (fileUrl.includes('/api/doctor/') && fileUrl.includes('/attachments/')) {
       const filename = path.basename(fileUrl);
-      fileUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${filename}`;
+      fileUrl = `${backendUrl}/uploads/${filename}`;
     }
     // If it doesn't start with http, make it absolute
     else if (!fileUrl.startsWith('http')) {
-      fileUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}${fileUrl}`;
+      fileUrl = `${backendUrl}${fileUrl}`;
     }
     
     return {
@@ -311,6 +324,7 @@ export const uploadAttachments = async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'No files uploaded' });
   }
 
+  const backendUrl = getBackendUrl(req);
   const attachmentRepo = AppDataSource.getRepository(Attachment);
   const attachments = await Promise.all(
     files.map(async (file) => {
@@ -318,7 +332,7 @@ export const uploadAttachments = async (req: AuthRequest, res: Response) => {
         campId,
         visitId,
         fileName: file.originalname,
-        fileUrl: `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${file.filename}`,
+        fileUrl: `${backendUrl}/uploads/${file.filename}`,
         type: type || AttachmentType.DOCUMENT,
         fileSize: file.size,
         mimeType: file.mimetype
