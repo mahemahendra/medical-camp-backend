@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret } from 'jsonwebtoken';
 import { AppDataSource } from '../database';
 import { User } from '../models/User';
 import { Camp } from '../models/Camp';
@@ -58,7 +58,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Generate JWT token
-    const jwtSecret: string = getJwtSecret();
+    const jwtSecret: Secret = getJwtSecret();
     const token = jwt.sign(
       {
         id: user.id,
@@ -111,7 +111,7 @@ export const login = async (req: Request, res: Response) => {
   }
 
   // Generate JWT token
-  const jwtSecret: string = getJwtSecret();
+  const jwtSecret: Secret = getJwtSecret();
   const token = jwt.sign(
     {
       id: user.id,
