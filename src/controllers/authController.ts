@@ -10,6 +10,20 @@ import { Camp } from '../models/Camp';
  * Auth controller - handles login and authentication
  */
 
+/**
+ * Get JWT secret with fallback for development
+ */
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret === 'your-secret-key-change-in-production') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET must be configured in production');
+    }
+    return 'development-only-secret-key';
+  }
+  return secret;
+};
+
 export const login = async (req: Request, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -49,7 +63,7 @@ export const login = async (req: Request, res: Response) => {
         role: user.role,
         campId: user.campId
       },
-      process.env.JWT_SECRET!,
+      getJwtSecret(),
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -101,7 +115,7 @@ export const login = async (req: Request, res: Response) => {
       role: user.role,
       campId: user.campId
     },
-    process.env.JWT_SECRET!,
+    getJwtSecret(),
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 
