@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { AppDataSource } from '../database';
 import { Visitor } from '../models/Visitor';
-import { Visit } from '../models/Visit';
+import { Visit, VisitStatus } from '../models/Visit';
 import { User, UserRole } from '../models/User';
 import { Like } from 'typeorm';
 
@@ -24,7 +24,7 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
 
   // Completed consultations
   const completedVisits = await visitRepo.count({
-    where: { campId, status: 'COMPLETED' }
+    where: { campId, status: VisitStatus.COMPLETED }
   });
 
   // Demographics

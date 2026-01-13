@@ -58,7 +58,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Generate JWT token
-    const jwtSecret = getJwtSecret() as jwt.Secret;
+    const jwtSecret: string = getJwtSecret();
     const token = jwt.sign(
       {
         id: user.id,
@@ -111,7 +111,7 @@ export const login = async (req: Request, res: Response) => {
   }
 
   // Generate JWT token
-  const jwtSecret = getJwtSecret() as jwt.Secret;
+  const jwtSecret: string = getJwtSecret();
   const token = jwt.sign(
     {
       id: user.id,

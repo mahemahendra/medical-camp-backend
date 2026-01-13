@@ -32,9 +32,8 @@ async function seedAdmin() {
       name: 'System Admin',
       email: 'admin@medical-camp.com',
       phone: '+1234567890',
-      passwordHash: hashedPassword,
-      campId: null, // Admin has no camp assignment
-      isActive: true // Must be active to login
+      passwordHash: hashedPassword
+      // camp is null for Admin (no camp assignment)
     });
 
     await userRepo.save(admin);
