@@ -19,6 +19,7 @@ const getJwtSecret = (): string => {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('JWT_SECRET must be configured in production');
     }
+    console.warn('WARNING: Using default JWT secret. Set JWT_SECRET in environment variables.');
     return 'development-only-secret-key';
   }
   return secret;
@@ -57,13 +58,14 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Generate JWT token
+    const jwtSecret = getJwtSecret() as jwt.Secret;
     const token = jwt.sign(
       {
         id: user.id,
         role: user.role,
         campId: user.campId
       },
-      getJwtSecret(),
+      jwtSecret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -109,13 +111,14 @@ export const login = async (req: Request, res: Response) => {
   }
 
   // Generate JWT token
+  const jwtSecret = getJwtSecret() as jwt.Secret;
   const token = jwt.sign(
     {
       id: user.id,
       role: user.role,
       campId: user.campId
     },
-    getJwtSecret(),
+    jwtSecret,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 
