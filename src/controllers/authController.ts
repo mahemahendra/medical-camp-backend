@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
-import jwt, { Secret } from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { AppDataSource } from '../database';
 import { User } from '../models/User';
 import { Camp } from '../models/Camp';
@@ -66,7 +66,7 @@ export const login = async (req: Request, res: Response) => {
         campId: user.campId
       },
       jwtSecret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: '7d' } as SignOptions
     );
 
     return res.json({
@@ -119,7 +119,7 @@ export const login = async (req: Request, res: Response) => {
       campId: user.campId
     },
     jwtSecret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: '7d' } as SignOptions
   );
 
   res.json({
