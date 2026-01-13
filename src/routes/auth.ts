@@ -9,7 +9,7 @@ const router = Router();
 // Rate limiting for login endpoint - prevent brute force attacks
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 login attempts per IP per 15 minutes
+  max: 100, // 100 login attempts per IP per 15 minutes (increased for development)
   message: { error: 'Too many login attempts. Please try again after 15 minutes.' },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false // Disable the `X-RateLimit-*` headers
@@ -20,7 +20,8 @@ const loginLimiter = rateLimit({
  * Login for Camp Head, Doctor, or Admin
  * Requires email/password. campSlug is optional (not needed for admin)
  */
-router.post('/login', loginLimiter, [
+router.post('/login', [
+  // loginLimiter temporarily disabled for development
   body('email')
     .notEmpty().withMessage('Email is required')
     .isEmail().withMessage('Invalid email format')
