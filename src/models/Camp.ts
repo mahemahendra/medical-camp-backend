@@ -23,6 +23,9 @@ export class Camp {
   @Column({ nullable: true, name: 'logo_url' })
   logoUrl: string;
 
+  @Column({ nullable: true, name: 'background_image_url' })
+  backgroundImageUrl: string;
+
   @Column()
   venue: string;
 

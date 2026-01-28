@@ -58,7 +58,7 @@ export const listMyPatients = async (req: AuthRequest, res: Response) => {
   const doctorId = req.user!.id;
 
   const visitRepo = AppDataSource.getRepository(Visit);
-  
+
   let queryBuilder = visitRepo
     .createQueryBuilder('visit')
     .leftJoinAndSelect('visit.visitor', 'visitor')
@@ -129,7 +129,7 @@ export const searchVisitor = async (req: AuthRequest, res: Response) => {
           { query: `%${query}%` }
         )
         .getMany();
-      
+
       return res.json({ visitors });
   }
 
@@ -174,11 +174,12 @@ export const saveConsultation = async (req: AuthRequest, res: Response) => {
     diagnosis,
     treatmentPlan,
     prescriptions,
-    followUpAdvice
+    followUpAdvice,
+    isInsured
   } = req.body;
 
   // Filter out empty prescription entries (where name is empty)
-  const filteredPrescriptions = Array.isArray(prescriptions) 
+  const filteredPrescriptions = Array.isArray(prescriptions)
     ? prescriptions.filter((rx: any) => rx.name && rx.name.trim() !== '')
     : [];
 
@@ -194,7 +195,7 @@ export const saveConsultation = async (req: AuthRequest, res: Response) => {
   }
 
   const consultationRepo = AppDataSource.getRepository(Consultation);
-  
+
   // Check if consultation already exists
   let consultation = await consultationRepo.findOne({ where: { visitId } });
 
@@ -206,7 +207,8 @@ export const saveConsultation = async (req: AuthRequest, res: Response) => {
       diagnosis,
       treatmentPlan,
       prescriptions: filteredPrescriptions,
-      followUpAdvice
+      followUpAdvice,
+      isInsured
     });
     consultation = await consultationRepo.findOne({ where: { id: consultation.id } });
   } else {
@@ -218,7 +220,8 @@ export const saveConsultation = async (req: AuthRequest, res: Response) => {
       diagnosis,
       treatmentPlan,
       prescriptions: filteredPrescriptions,
-      followUpAdvice
+      followUpAdvice,
+      isInsured
     });
     await consultationRepo.save(consultation);
   }
@@ -256,11 +259,11 @@ export const getVisitWithAttachments = async (req: AuthRequest, res: Response) =
   });
 
   const backendUrl = getBackendUrl(req);
-  
+
   // Ensure all attachment URLs are absolute static URLs
   const normalizedAttachments = attachments.map(attachment => {
     let fileUrl = attachment.fileUrl;
-    
+
     // If it's a relative URL starting with /uploads/, make it absolute
     if (fileUrl.startsWith('/uploads/')) {
       fileUrl = `${backendUrl}${fileUrl}`;
@@ -274,7 +277,7 @@ export const getVisitWithAttachments = async (req: AuthRequest, res: Response) =
     else if (!fileUrl.startsWith('http')) {
       fileUrl = `${backendUrl}${fileUrl}`;
     }
-    
+
     return {
       ...attachment,
       fileUrl
@@ -299,7 +302,7 @@ export const deleteAttachment = async (req: AuthRequest, res: Response) => {
   // Delete file from filesystem
   const filename = path.basename(attachment.fileUrl);
   const filePath = path.resolve(uploadDir, filename);
-  
+
   if (fs.existsSync(filePath)) {
     try {
       fs.unlinkSync(filePath);

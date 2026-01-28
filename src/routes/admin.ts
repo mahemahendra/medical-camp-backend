@@ -4,6 +4,7 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { UserRole } from '../models/User';
 import * as adminController from '../controllers/adminController';
+import { upload } from '../middleware/upload';
 
 const router = Router();
 
@@ -14,7 +15,36 @@ router.use(authenticate, requireRole(UserRole.ADMIN));
  * POST /api/admin/camps
  * Create a new medical camp with Camp Head and Doctors
  */
+const parseMultipartJson = (req: any, res: any, next: any) => {
+  try {
+    if (req.body.campHead && typeof req.body.campHead === 'string') {
+      req.body.campHead = JSON.parse(req.body.campHead);
+    }
+    if (req.body.doctors && typeof req.body.doctors === 'string') {
+      req.body.doctors = JSON.parse(req.body.doctors);
+    }
+    if (req.body.passwordSettings && typeof req.body.passwordSettings === 'string') {
+      req.body.passwordSettings = JSON.parse(req.body.passwordSettings);
+    }
+
+    // Remove file fields from body - they're in req.files, not database columns
+    // This prevents TypeORM errors like "Property 'logo' not found in 'Camp'"
+    delete req.body.logo;
+    delete req.body.backgroundImage;
+
+    next();
+  } catch (err) {
+    console.error('JSON Parse Error:', err);
+    return res.status(400).json({ message: 'Invalid JSON format in multipart data' });
+  }
+};
+
 router.post('/camps', [
+  upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'backgroundImage', maxCount: 1 }
+  ]),
+  parseMultipartJson,
   body('hospitalName')
     .notEmpty().withMessage('Hospital name is required')
     .trim()
@@ -104,12 +134,25 @@ router.get('/camps/:campId', [
 
 /**
  * PUT /api/admin/camps/:campId
- * Update camp details
+ * Update camp details (supports file uploads)
  */
 router.put('/camps/:campId', [
+  upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'backgroundImage', maxCount: 1 }
+  ]),
   param('campId')
     .isUUID().withMessage('Invalid camp ID format')
 ], asyncHandler(adminController.updateCamp));
+
+/**
+ * DELETE /api/admin/camps/:campId
+ * Delete a medical camp
+ */
+router.delete('/camps/:campId', [
+  param('campId')
+    .isUUID().withMessage('Invalid camp ID format')
+], asyncHandler(adminController.deleteCamp));
 
 /**
  * GET /api/admin/users

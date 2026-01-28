@@ -17,6 +17,19 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
+  // Parse JSON strings from multipart/form-data
+  let doctors = [];
+  let campHead = { name: '', email: '', phone: '' };
+  let passwordSettings = { mode: 'auto' };
+
+  // JSON fields are already parsed by middleware
+  doctors = req.body.doctors || [];
+  campHead = req.body.campHead || { name: '', email: '', phone: '' };
+
+  if (req.body.passwordSettings) {
+    passwordSettings = req.body.passwordSettings;
+  }
+
   const {
     hospitalName,
     hospitalAddress,
@@ -27,12 +40,23 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
     venue,
     startTime,
     endTime,
-    logoUrl,
-    contactInfo,
-    campHead,
-    doctors,
-    passwordSettings
+    contactInfo
   } = req.body;
+
+  // Handle file uploads
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+  let logoUrl = '';
+  let backgroundImageUrl = '';
+
+  if (files) {
+    if (files.logo && files.logo[0]) {
+      logoUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.logo[0].filename}`;
+    }
+
+    if (files.backgroundImage && files.backgroundImage[0]) {
+      backgroundImageUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.backgroundImage[0].filename}`;
+    }
+  }
 
   // Generate unique slug for camp URL
   const uniqueSlug = nanoid(10);
@@ -49,6 +73,7 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
     startTime: new Date(startTime),
     endTime: new Date(endTime),
     logoUrl,
+    backgroundImageUrl,
     contactInfo,
     hospitalName,
     hospitalAddress,
@@ -60,12 +85,12 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
 
   // Handle password creation based on settings
   const isAutoGenerate = !passwordSettings || passwordSettings.mode === 'auto';
-  
+
   // Create Camp Head user
-  const campHeadPassword = isAutoGenerate 
-    ? nanoid(12) 
-    : passwordSettings.campHeadPassword;
-    
+  const campHeadPassword = isAutoGenerate
+    ? nanoid(12)
+    : (passwordSettings as any).campHeadPassword;
+
   const campHeadUser = userRepo.create({
     role: UserRole.CAMP_HEAD,
     name: campHead.name,
@@ -81,10 +106,10 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
   // Create Doctor users
   const doctorUsers = await Promise.all(
     doctors.map(async (doctor: any) => {
-      const docPassword = isAutoGenerate 
-        ? nanoid(12) 
-        : passwordSettings.doctorPasswords[doctor.email];
-        
+      const docPassword = isAutoGenerate
+        ? nanoid(12)
+        : (passwordSettings as any).doctorPasswords[doctor.email];
+
       const doctorUser = userRepo.create({
         role: UserRole.DOCTOR,
         name: doctor.name,
@@ -95,8 +120,8 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
         campId: camp.id,
         isActive: true
       });
-      return { 
-        user: await userRepo.save(doctorUser), 
+      return {
+        user: await userRepo.save(doctorUser),
         tempPassword: docPassword,
         name: doctor.name
       };
@@ -171,13 +196,13 @@ export const getCampDoctors = async (req: AuthRequest, res: Response) => {
   }
 
   const { campId } = req.params;
-  
+
   const userRepo = AppDataSource.getRepository(User);
-  
+
   const doctors = await userRepo.find({
-    where: { 
+    where: {
       campId: campId,
-      role: UserRole.DOCTOR 
+      role: UserRole.DOCTOR
     },
     select: ['id', 'name', 'email', 'phone', 'specialty', 'campId', 'isActive', 'createdAt']
   });
@@ -193,14 +218,14 @@ export const resetDoctorPassword = async (req: AuthRequest, res: Response) => {
 
   const { doctorId } = req.params;
   const { passwordMode, manualPassword } = req.body;
-  
+
   const userRepo = AppDataSource.getRepository(User);
-  
+
   // Find the doctor
-  const doctor = await userRepo.findOne({ 
-    where: { 
+  const doctor = await userRepo.findOne({
+    where: {
       id: doctorId,
-      role: UserRole.DOCTOR 
+      role: UserRole.DOCTOR
     }
   });
 
@@ -211,7 +236,7 @@ export const resetDoctorPassword = async (req: AuthRequest, res: Response) => {
   // Generate or use manual password
   const isManual = passwordMode === 'manual';
   const tempPassword = isManual ? manualPassword : nanoid(12);
-  
+
   // Validate manual password if provided
   if (isManual) {
     if (!manualPassword || manualPassword.length < 8) {
@@ -230,7 +255,7 @@ export const resetDoctorPassword = async (req: AuthRequest, res: Response) => {
   console.log(`New password: ${tempPassword}`);
   console.log(`Password hash updated: ${updatedDoctor?.passwordHash !== doctor.passwordHash}`);
 
-  res.json({ 
+  res.json({
     message: 'Password reset successfully',
     tempPassword,
     doctorName: doctor.name,
@@ -246,18 +271,71 @@ export const updateCamp = async (req: AuthRequest, res: Response) => {
   }
 
   const { campId } = req.params;
-  const updates = req.body;
-  
+
   const campRepo = AppDataSource.getRepository(Camp);
-  
-  // Find and update camp
+
+  // Find camp
   const camp = await campRepo.findOne({ where: { id: campId } });
   if (!camp) {
     return res.status(404).json({ message: 'Camp not found' });
   }
 
+  // Only pick valid Camp entity fields from req.body
+  // Do NOT spread entire req.body as it contains FormData fields that don't exist on Camp
+  const updates: Partial<Camp> = {};
+
+  const validFields = [
+    'name', 'description', 'venue', 'contactInfo',
+    'hospitalName', 'hospitalAddress', 'hospitalPhone', 'hospitalEmail'
+  ];
+
+  for (const field of validFields) {
+    if (req.body[field] !== undefined) {
+      (updates as any)[field] = req.body[field];
+    }
+  }
+
+  // Handle date fields separately
+  if (req.body.startTime) {
+    updates.startTime = new Date(req.body.startTime);
+  }
+  if (req.body.endTime) {
+    updates.endTime = new Date(req.body.endTime);
+  }
+
+  // Handle file uploads if provided
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+
+  if (files) {
+    if (files.logo && files.logo[0]) {
+      updates.logoUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.logo[0].filename}`;
+    }
+
+    if (files.backgroundImage && files.backgroundImage[0]) {
+      updates.backgroundImageUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.backgroundImage[0].filename}`;
+    }
+  }
+
+  // Update camp
   await campRepo.update(campId, updates);
   const updatedCamp = await campRepo.findOne({ where: { id: campId } });
 
   res.json({ camp: updatedCamp });
+};
+
+export const deleteCamp = async (req: AuthRequest, res: Response) => {
+  const { campId } = req.params;
+  const campRepo = AppDataSource.getRepository(Camp);
+
+  const camp = await campRepo.findOne({ where: { id: campId } });
+  if (!camp) {
+    return res.status(404).json({ message: 'Camp not found' });
+  }
+
+  // Note: Depending on database constraints, we might need to delete related records first
+  // or use CASCADE options in the entity definitions.
+  // For now, we attempt to delete the camp.
+  await campRepo.remove(camp);
+
+  res.status(200).json({ message: 'Camp deleted successfully' });
 };

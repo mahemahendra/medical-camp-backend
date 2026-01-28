@@ -63,6 +63,9 @@ export class Consultation {
   @Column({ type: 'text', nullable: true })
   followUpAdvice: string;
 
+  @Column({ default: false })
+  isInsured: boolean;
+
   @OneToMany(() => Attachment, attachment => attachment.consultation)
   attachments: Attachment[];
 

@@ -17,18 +17,28 @@ export const getCampInfo = async (req: Request, res: Response) => {
 
   const campRepo = AppDataSource.getRepository(Camp);
   const camp = await campRepo.findOne({
-    where: { uniqueSlug: campSlug }
+    where: { uniqueSlug: campSlug },
+    relations: ['users']
   });
 
   if (!camp) {
     return res.status(404).json({ error: 'Camp not found' });
   }
 
+  // Filter and map doctors
+  const doctors = (camp.users || [])
+    .filter(user => user.role === 'DOCTOR')
+    .map(doc => ({
+      name: doc.name,
+      specialty: doc.specialty
+    }));
+
   res.json({
     camp: {
       name: camp.name,
       description: camp.description,
       logoUrl: camp.logoUrl,
+      backgroundImageUrl: camp.backgroundImageUrl,
       venue: camp.venue,
       startTime: camp.startTime,
       endTime: camp.endTime,
@@ -36,7 +46,8 @@ export const getCampInfo = async (req: Request, res: Response) => {
       hospitalName: camp.hospitalName,
       hospitalAddress: camp.hospitalAddress,
       hospitalPhone: camp.hospitalPhone,
-      hospitalEmail: camp.hospitalEmail
+      hospitalEmail: camp.hospitalEmail,
+      doctors // Include doctors in response
     }
   });
 };
@@ -162,7 +173,7 @@ ${process.env.FRONTEND_URL}/qr/${visitor.id}
   try {
     // TODO: Call actual WhatsApp API
     // await whatsappService.sendMessage(visitor.phone, message);
-    
+
     log.status = MessageStatus.SENT;
     log.sentAt = new Date();
   } catch (error: any) {

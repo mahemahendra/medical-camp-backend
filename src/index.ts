@@ -3,10 +3,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import path from 'path';
-import fs from 'fs';
 import { AppDataSource } from './database';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { uploadDir } from './middleware/upload';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
 import publicRoutes from './routes/public';
@@ -19,29 +18,27 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Ensure upload directory exists
-const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
 // Security Middleware - Helmet adds security headers
+// In development, disable CSP to avoid blocking localhost requests
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 app.use(helmet({
-  contentSecurityPolicy: {
+  contentSecurityPolicy: isDevelopment ? false : {
     directives: {
-      defaultSrc: ["'self'"],
+      defaultSrc: ["'self'", "http://localhost:*"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "http://localhost:*", "blob:"],
       scriptSrc: ["'self'"]
     }
   },
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
 // CORS Configuration
 const allowedOrigins: string[] = [
   'http://localhost:5173',
-  'http://localhost:5174', 
+  'http://localhost:5174',
   'http://localhost:5175',
   'https://medical-camp-frontend.onrender.com',
   process.env.FRONTEND_URL
@@ -66,13 +63,15 @@ app.use('/uploads', cors({
   // Allow inline viewing but prevent script execution
   res.setHeader('Content-Disposition', 'inline');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Explicitly allow cross-origin resource sharing for images
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 }, express.static(uploadDir));
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     database: AppDataSource.isInitialized ? 'connected' : 'disconnected'
@@ -80,8 +79,8 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     database: AppDataSource.isInitialized ? 'connected' : 'disconnected'
@@ -105,7 +104,7 @@ app.use(errorHandler);
 AppDataSource.initialize()
   .then(() => {
     console.log('Database connected successfully');
-    
+
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
