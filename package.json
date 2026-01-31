@@ -1,6 +1,6 @@
 {
   "name": "medical-camp-backend",
-  "version": "1.0.0", 
+  "version": "1.0.0",
   "description": "Medical camp management backend API - Multi-tenant Node.js server",
   "main": "dist/index.js",
   "scripts": {
@@ -14,8 +14,9 @@
     "db:generate": "node -r dotenv/config node_modules/.bin/typeorm migration:generate"
   },
   "dependencies": {
+    "axios": "^1.13.4",
     "bcrypt": "^5.1.1",
-    "cors": "^2.8.5", 
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
@@ -36,7 +37,7 @@
     "@types/express": "^4.17.21",
     "@types/helmet": "^0.0.48",
     "@types/jest": "^29.5.11",
-    "@types/jsonwebtoken": "^9.0.5", 
+    "@types/jsonwebtoken": "^9.0.5",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.10.6",
     "@types/qrcode": "^1.5.5",
@@ -46,7 +47,14 @@
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },
-  "keywords": ["medical", "camp", "multi-tenant", "api", "nodejs", "postgresql"],
+  "keywords": [
+    "medical",
+    "camp",
+    "multi-tenant",
+    "api",
+    "nodejs",
+    "postgresql"
+  ],
   "author": "Medical Camp Manager",
   "license": "MIT",
   "engines": {
