@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { param, query } from 'express-validator';
+import { param, query, body } from 'express-validator';
 import { authenticate, requireRole, enforceCampIsolation } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { UserRole } from '../models/User';
@@ -22,6 +22,22 @@ router.get('/:campId/analytics',
   validateCampId,
   enforceCampIsolation, 
   asyncHandler(campHeadController.getAnalytics)
+);
+
+/**
+ * POST /api/camp-head/:campId/doctors/:doctorId/reset-password
+ * Reset password for a doctor in the camp
+ * MUST be before /:campId/doctors route due to Express route matching
+ */
+router.post('/:campId/doctors/:doctorId/reset-password', 
+  [
+    validateCampId,
+    param('doctorId').isUUID().withMessage('Invalid doctor ID format'),
+    body('passwordMode').optional().isIn(['auto', 'manual']).withMessage('Invalid password mode'),
+    body('manualPassword').optional().isString().isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+  ],
+  enforceCampIsolation, 
+  asyncHandler(campHeadController.resetDoctorPassword)
 );
 
 /**

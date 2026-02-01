@@ -7,6 +7,7 @@ import { Camp } from '../models/Camp';
 import { Visitor } from '../models/Visitor';
 import { Visit, VisitStatus } from '../models/Visit';
 import { WhatsAppMessageLog, MessageType, MessageStatus } from '../models/WhatsAppMessageLog';
+import { sendRegistrationTelegram } from '../services/telegramService';
 
 /**
  * Public controller - handles visitor registration and public camp info
@@ -122,8 +123,8 @@ export const registerVisitor = async (req: Request, res: Response) => {
 
   await visitRepo.save(visit);
 
-  // Send WhatsApp message
-  await sendRegistrationWhatsApp(camp, visitor);
+  // Send registration confirmation via Telegram
+  await sendRegistrationConfirmation(camp, visitor);
 
   res.status(201).json({
     visitor: {
@@ -132,7 +133,7 @@ export const registerVisitor = async (req: Request, res: Response) => {
       name: visitor.name,
       qrCode: visitor.qrCode
     },
-    message: 'Registration successful. Details sent via WhatsApp.'
+    message: 'Registration successful. Confirmation sent via Telegram.'
   });
 };
 
@@ -142,44 +143,18 @@ export const getVisitSummary = async (req: Request, res: Response) => {
 };
 
 /**
- * Helper function to send WhatsApp message after registration
- * Integration point: Replace with actual WhatsApp API
+ * Helper function to send registration confirmation via Telegram
+ * Integration point: Telegram messaging service
  */
-async function sendRegistrationWhatsApp(camp: Camp, visitor: Visitor) {
-  const message = `
-Hello ${visitor.name},
-
-You have successfully registered for ${camp.name}.
-
-Patient ID: ${visitor.patientIdPerCamp}
-Venue: ${camp.venue}
-Date: ${camp.startTime.toLocaleDateString()}
-
-Please save your Patient ID and QR code for check-in.
-
-${process.env.FRONTEND_URL}/qr/${visitor.id}
-  `.trim();
-
-  // Log the message
-  const logRepo = AppDataSource.getRepository(WhatsAppMessageLog);
-  const log = logRepo.create({
-    campId: camp.id,
-    visitorId: visitor.id,
-    type: MessageType.REGISTRATION,
-    message,
-    status: MessageStatus.PENDING
-  });
-
+async function sendRegistrationConfirmation(camp: Camp, visitor: Visitor) {
   try {
-    // TODO: Call actual WhatsApp API
-    // await whatsappService.sendMessage(visitor.phone, message);
-
-    log.status = MessageStatus.SENT;
-    log.sentAt = new Date();
+    // Send via Telegram
+    await sendRegistrationTelegram(camp, visitor);
   } catch (error: any) {
-    log.status = MessageStatus.FAILED;
-    log.errorMessage = error.message;
+    console.error('[Registration] Failed to send confirmation:', error.message);
+    // Don't fail the registration if messaging fails
+    // Log is already saved in the telegramService
   }
-
-  await logRepo.save(log);
 }
+
+

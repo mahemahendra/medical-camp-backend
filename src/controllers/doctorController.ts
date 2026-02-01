@@ -6,9 +6,11 @@ import { Visitor } from '../models/Visitor';
 import { Visit, VisitStatus } from '../models/Visit';
 import { Consultation } from '../models/Consultation';
 import { Attachment, AttachmentType } from '../models/Attachment';
+import { Camp } from '../models/Camp';
 import { Like } from 'typeorm';
 import path from 'path';
 import fs from 'fs';
+import { sendConsultationCompleteTelegram } from '../services/telegramService';
 
 // Get upload directory path
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
@@ -137,6 +139,51 @@ export const searchVisitor = async (req: AuthRequest, res: Response) => {
   res.json({ visitors });
 };
 
+/**
+ * Get visitor by QR code scan - allows doctor to access any visitor in their camp
+ */
+export const getVisitorByQR = async (req: AuthRequest, res: Response) => {
+  const { visitorId } = req.params;
+  const doctorCampId = req.user!.campId;
+
+  const visitorRepo = AppDataSource.getRepository(Visitor);
+  const visitRepo = AppDataSource.getRepository(Visit);
+
+  // Find visitor
+  const visitor = await visitorRepo.findOne({
+    where: { id: visitorId },
+    relations: ['camp']
+  });
+
+  if (!visitor) {
+    return res.status(404).json({ error: 'Visitor not found' });
+  }
+
+  // Check if visitor belongs to doctor's camp
+  if (visitor.campId !== doctorCampId) {
+    return res.status(403).json({ error: 'This visitor is not registered for your camp' });
+  }
+
+  // Get or create visit for this visitor
+  let visit = await visitRepo.findOne({
+    where: { visitorId: visitor.id, campId: doctorCampId },
+    relations: ['consultation'],
+    order: { createdAt: 'DESC' }
+  });
+
+  if (!visit) {
+    // Create a new visit if none exists
+    visit = visitRepo.create({
+      campId: doctorCampId,
+      visitorId: visitor.id,
+      status: VisitStatus.REGISTERED
+    });
+    await visitRepo.save(visit);
+  }
+
+  res.json({ visitor, visit, camp: visitor.camp });
+};
+
 export const getVisitorDetails = async (req: AuthRequest, res: Response) => {
   const { campId, visitorId } = req.params;
 
@@ -232,8 +279,8 @@ export const saveConsultation = async (req: AuthRequest, res: Response) => {
   visit.consultationTime = new Date();
   await visitRepo.save(visit);
 
-  // TODO: Send WhatsApp message to visitor with consultation summary
-  // await sendConsultationWhatsApp(visit.visitor, consultation);
+  // Send Telegram message to visitor with consultation summary
+  await sendConsultationNotification(campId, visit.visitor, consultation);
 
   res.json({ consultation, message: 'Consultation saved successfully' });
 };
@@ -346,3 +393,36 @@ export const uploadAttachments = async (req: AuthRequest, res: Response) => {
 
   res.json({ attachments, message: 'Files uploaded successfully' });
 };
+
+/**
+ * Helper function to send consultation completion notification via Telegram
+ */
+async function sendConsultationNotification(
+  campId: string, 
+  visitor: Visitor, 
+  consultation: Consultation
+) {
+  try {
+    // Get camp details
+    const campRepo = AppDataSource.getRepository(Camp);
+    const camp = await campRepo.findOne({ where: { id: campId } });
+
+    if (!camp) {
+      console.error('[Notification] Camp not found:', campId);
+      return;
+    }
+
+    // Build consultation summary
+    const summary = `
+Diagnosis: ${consultation.diagnosis || 'Not specified'}
+Treatment Plan: ${consultation.treatmentPlan || 'Not specified'}
+Follow-up: ${consultation.followUpAdvice || 'Not specified'}
+    `.trim();
+
+    // Send Telegram notification
+    await sendConsultationCompleteTelegram(camp, visitor, summary);
+  } catch (error: any) {
+    console.error('[Notification] Failed to send consultation notification:', error.message);
+    // Don't fail the consultation save if messaging fails
+  }
+}

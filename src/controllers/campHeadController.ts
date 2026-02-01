@@ -1,4 +1,7 @@
 import { Response } from 'express';
+import { validationResult } from 'express-validator';
+import bcrypt from 'bcrypt';
+import { nanoid } from 'nanoid';
 import { AuthRequest } from '../middleware/auth';
 import { AppDataSource } from '../database';
 import { Visitor } from '../models/Visitor';
@@ -101,6 +104,63 @@ export const listDoctors = async (req: AuthRequest, res: Response) => {
     page,
     limit,
     totalPages: Math.ceil(total / limit)
+  });
+};
+
+/**
+ * Reset password for a doctor in the camp
+ */
+export const resetDoctorPassword = async (req: AuthRequest, res: Response) => {
+  console.log('=== resetDoctorPassword called ===');
+  console.log('Params:', req.params);
+  console.log('Body:', req.body);
+  
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    console.log('Validation errors:', errors.array());
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { campId, doctorId } = req.params;
+  const { passwordMode, manualPassword } = req.body;
+
+  const userRepo = AppDataSource.getRepository(User);
+
+  // Find the doctor and verify they belong to the same camp
+  const doctor = await userRepo.findOne({
+    where: {
+      id: doctorId,
+      campId: campId,
+      role: UserRole.DOCTOR
+    }
+  });
+
+  if (!doctor) {
+    return res.status(404).json({ message: 'Doctor not found in this camp' });
+  }
+
+  // Generate or use manual password
+  const isManual = passwordMode === 'manual';
+  const tempPassword = isManual ? manualPassword : nanoid(12);
+
+  // Validate manual password if provided
+  if (isManual) {
+    if (!manualPassword || manualPassword.length < 8) {
+      return res.status(400).json({ message: 'Manual password must be at least 8 characters long' });
+    }
+  }
+
+  const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+  // Update doctor's password
+  await userRepo.update(doctorId, { passwordHash: hashedPassword });
+
+  res.json({
+    message: 'Password reset successfully',
+    tempPassword,
+    doctorName: doctor.name,
+    doctorEmail: doctor.email,
+    passwordMode: passwordMode || 'auto'
   });
 };
 

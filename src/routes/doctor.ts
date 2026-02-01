@@ -117,6 +117,18 @@ router.get('/:campId/visitors/search',
 );
 
 /**
+ * GET /api/doctor/:campId/visitor-by-qr/:visitorId
+ * Get visitor details for QR code scan (bypasses camp isolation since visitor ID is unique)
+ */
+router.get('/:campId/visitor-by-qr/:visitorId',
+  validateCampId,
+  [
+    param('visitorId').isUUID().withMessage('Invalid visitor ID')
+  ],
+  asyncHandler(doctorController.getVisitorByQR)
+);
+
+/**
  * GET /api/doctor/:campId/visitors/:visitorId
  * Get visitor details and visit history
  */
