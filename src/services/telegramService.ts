@@ -34,21 +34,24 @@ export async function sendTelegramMessage(
     return false;
   }
 
-  // In development/testing mode, use a test chat ID if phone number provided
+  // Use test chat ID if phone number provided and TELEGRAM_TEST_CHAT_ID is set
   // Get your chat ID by messaging your bot and visiting:
   // https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
-  const TEST_CHAT_ID = process.env.TELEGRAM_TEST_CHAT_ID || ''; // Your personal chat ID for testing
+  const TEST_CHAT_ID = process.env.TELEGRAM_TEST_CHAT_ID || '';
   
   let chatId = phoneNumberOrChatId;
   
-  // If it looks like a phone number (contains + or starts with digits), use test chat ID
-  if (process.env.NODE_ENV === 'development' && TEST_CHAT_ID && /^[\+\d]/.test(phoneNumberOrChatId)) {
-    console.log(`[Telegram] Dev mode: Using test chat ID for ${phoneNumberOrChatId}`);
-    chatId = TEST_CHAT_ID;
-  } else if (process.env.NODE_ENV !== 'development' && /^[\+\d]/.test(phoneNumberOrChatId)) {
-    // Production: phone numbers won't work, skip silently
-    console.warn(`[Telegram] Skipping: Phone number ${phoneNumberOrChatId} cannot be used in production (need chat ID)`);
-    return false;
+  // If it looks like a phone number (contains + or starts with digits)
+  if (/^[\+\d]/.test(phoneNumberOrChatId)) {
+    if (TEST_CHAT_ID) {
+      // Use test chat ID (works in both dev and production)
+      console.log(`[Telegram] Using test chat ID for ${phoneNumberOrChatId} (${process.env.NODE_ENV})`);
+      chatId = TEST_CHAT_ID;
+    } else {
+      // No test chat ID configured, skip
+      console.warn(`[Telegram] Skipping: Phone number ${phoneNumberOrChatId} cannot be used (need chat ID or TELEGRAM_TEST_CHAT_ID)`);
+      return false;
+    }
   }
 
   console.log(`[Telegram] Attempting to send message to chat ID: ${chatId}`);
@@ -93,12 +96,14 @@ export async function sendTelegramPhoto(
   
   let chatId = phoneNumberOrChatId;
   
-  if (process.env.NODE_ENV === 'development' && TEST_CHAT_ID && /^[\+\d]/.test(phoneNumberOrChatId)) {
-    console.log(`[Telegram] Dev mode: Using test chat ID for ${phoneNumberOrChatId}`);
-    chatId = TEST_CHAT_ID;
-  } else if (process.env.NODE_ENV !== 'development' && /^[\+\d]/.test(phoneNumberOrChatId)) {
-    console.warn(`[Telegram] Skipping: Phone number ${phoneNumberOrChatId} cannot be used in production (need chat ID)`);
-    return false;
+  if (/^[\+\d]/.test(phoneNumberOrChatId)) {
+    if (TEST_CHAT_ID) {
+      console.log(`[Telegram] Using test chat ID for ${phoneNumberOrChatId} (${process.env.NODE_ENV})`);
+      chatId = TEST_CHAT_ID;
+    } else {
+      console.warn(`[Telegram] Skipping: Phone number ${phoneNumberOrChatId} cannot be used (need chat ID or TELEGRAM_TEST_CHAT_ID)`);
+      return false;
+    }
   }
 
   console.log(`[Telegram] Attempting to send photo to chat ID: ${chatId}`);
@@ -152,8 +157,9 @@ export async function sendRegistrationTelegram(camp: Camp, visitor: Visitor): Pr
   });
 
   // Generate QR code image buffer with direct URL for doctors to scan
+  // Note: Frontend uses HashRouter, so URL must include #
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const qrCodeUrl = `${frontendUrl}/${camp.uniqueSlug}/doctor/visitor/${visitor.id}`;
+  const qrCodeUrl = `${frontendUrl}/#/${camp.uniqueSlug}/doctor/visitor/${visitor.id}`;
   const qrBuffer = await QRCode.toBuffer(qrCodeUrl, {
     errorCorrectionLevel: 'M',
     type: 'png',
