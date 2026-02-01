@@ -324,18 +324,58 @@ export const updateCamp = async (req: AuthRequest, res: Response) => {
 };
 
 export const deleteCamp = async (req: AuthRequest, res: Response) => {
-  const { campId } = req.params;
-  const campRepo = AppDataSource.getRepository(Camp);
-
-  const camp = await campRepo.findOne({ where: { id: campId } });
-  if (!camp) {
-    return res.status(404).json({ message: 'Camp not found' });
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
   }
 
-  // Note: Depending on database constraints, we might need to delete related records first
-  // or use CASCADE options in the entity definitions.
-  // For now, we attempt to delete the camp.
-  await campRepo.remove(camp);
+  const { campId } = req.params;
+  
+  // Use transaction to ensure all deletions succeed or none do
+  const queryRunner = AppDataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  res.status(200).json({ message: 'Camp deleted successfully' });
+  try {
+    const campRepo = queryRunner.manager.getRepository(Camp);
+    const userRepo = queryRunner.manager.getRepository(User);
+    
+    const camp = await campRepo.findOne({ where: { id: campId } });
+    if (!camp) {
+      await queryRunner.rollbackTransaction();
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    // Delete all related records first to avoid foreign key constraints
+    // Note: This cascade delete handles Users, Visitors, Visits, Consultations, Attachments, WhatsApp logs
+    
+    // Delete users associated with this camp
+    await queryRunner.query('DELETE FROM users WHERE "campId" = $1', [campId]);
+    
+    // Delete consultations and attachments related to visits in this camp
+    await queryRunner.query('DELETE FROM consultations WHERE "visitId" IN (SELECT id FROM visits WHERE "campId" = $1)', [campId]);
+    await queryRunner.query('DELETE FROM attachments WHERE "campId" = $1', [campId]);
+    
+    // Delete visits in this camp
+    await queryRunner.query('DELETE FROM visits WHERE "campId" = $1', [campId]);
+    
+    // Delete WhatsApp message logs
+    await queryRunner.query('DELETE FROM whatsapp_message_logs WHERE "campId" = $1', [campId]);
+    
+    // Delete visitors registered for this camp
+    await queryRunner.query('DELETE FROM visitors WHERE "campId" = $1', [campId]);
+    
+    // Finally delete the camp itself
+    await campRepo.remove(camp);
+
+    await queryRunner.commitTransaction();
+    
+    res.status(200).json({ message: 'Camp and all related data deleted successfully' });
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    console.error('Failed to delete camp:', error);
+    res.status(500).json({ message: 'Failed to delete camp. Please try again.' });
+  } finally {
+    await queryRunner.release();
+  }
 };

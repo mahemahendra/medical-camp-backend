@@ -51,10 +51,10 @@ export class Camp {
   @Column({ nullable: true, name: 'hospital_email' })
   hospitalEmail: string;
 
-  @OneToMany(() => User, user => user.camp)
+  @OneToMany(() => User, user => user.camp, { cascade: true, onDelete: 'CASCADE' })
   users: User[];
 
-  @OneToMany(() => Visitor, visitor => visitor.camp)
+  @OneToMany(() => Visitor, visitor => visitor.camp, { cascade: true, onDelete: 'CASCADE' })
   visitors: Visitor[];
 
   @CreateDateColumn({ name: 'created_at' })
