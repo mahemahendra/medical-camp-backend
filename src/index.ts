@@ -48,11 +48,28 @@ const allowedOrigins: string[] = [
   process.env.FRONTEND_URL
 ].filter((origin): origin is string => Boolean(origin));
 
+// Log allowed origins in production for debugging
+if (!isDevelopment) {
+  console.log('Allowed CORS origins:', allowedOrigins);
+}
+
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 600 // Cache preflight requests for 10 minutes
 }));
 
 // Request size limits to prevent DoS
@@ -60,17 +77,63 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Serve uploaded files with security headers and CORS
-app.use('/uploads', cors({
-  origin: allowedOrigins,
-  credentials: false
-}), (req, res, next) => {
-  // Allow inline viewing but prevent script execution
-  res.setHeader('Content-Disposition', 'inline');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Explicitly allow cross-origin resource sharing for images
+// This is critical for allowing frontend to load images without ERR_BLOCKED_BY_ORB
+app.use('/uploads', (req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Set CORS headers explicitly for all requests
+  // Allow requests from known origins or all origins for images (less strict for static assets)
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else if (!isDevelopment && origin) {
+    // In production, log unknown origins but still allow for debugging
+    console.warn(`Upload request from unlisted origin: ${origin}`);
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else {
+    // Fallback to wildcard (allows images to load from anywhere)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+  
+  // Critical headers to prevent ORB (Opaque Response Blocking)
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline');
+  
+  // Cache control for better performance
+  res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  
   next();
-}, express.static(uploadDir));
+}, express.static(uploadDir, {
+  // Express static options for better serving
+  maxAge: '1y',
+  immutable: true,
+  setHeaders: (res, path) => {
+    // Set correct MIME types
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (path.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (path.endsWith('.gif')) {
+      res.setHeader('Content-Type', 'image/gif');
+    } else if (path.endsWith('.webp')) {
+      res.setHeader('Content-Type', 'image/webp');
+    }
+  }
+}));
 
 // Health check
 app.get('/health', (req, res) => {

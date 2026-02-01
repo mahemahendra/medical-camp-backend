@@ -33,7 +33,17 @@
    PORT=10000
    UPLOAD_DIR=./uploads
    MAX_FILE_SIZE=10485760
+   BACKEND_URL=https://your-backend-app.onrender.com
+   FRONTEND_URL=https://your-frontend-app.onrender.com
    ```
+   
+   **CRITICAL**: Set `BACKEND_URL` to your actual Render backend URL (e.g., `https://medical-camp-backend.onrender.com`)
+   **CRITICAL**: Set `FRONTEND_URL` to your actual Render frontend URL (e.g., `https://medical-camp-frontend.onrender.com`)
+   
+   These URLs are required for:
+   - Image URL generation in camp creation
+   - CORS configuration to allow frontend access
+   - Proper cross-origin resource loading
 
 ### 3. Initialize Database
 The database tables will be created automatically due to TypeORM synchronization.
@@ -54,7 +64,14 @@ NODE_ENV=production
 PORT=10000
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=10485760
+BACKEND_URL=https://your-backend-app.onrender.com
+FRONTEND_URL=https://your-frontend-app.onrender.com
 ```
+
+### Important Notes:
+- `BACKEND_URL` must be your full backend URL (used for generating image URLs)
+- `FRONTEND_URL` must be your full frontend URL (used for CORS configuration)
+- Both URLs are critical for proper cross-origin image loading
 
 ## API Health Check
 Test deployment: `GET https://your-backend-url.onrender.com/api/health`
@@ -62,5 +79,7 @@ Test deployment: `GET https://your-backend-url.onrender.com/api/health`
 ## Notes for Free Tier
 - Service sleeps after 15 minutes of inactivity
 - First request after sleep takes 30-60 seconds (cold start)
-- Files uploaded to `./uploads` are not persistent between deployments
+- **Files uploaded to `./uploads` are not persistent between deployments**
 - Consider external storage (Cloudinary, AWS S3) for production
+- Images may fail to load if `BACKEND_URL` and `FRONTEND_URL` are not set correctly
+- Check CORS configuration if you see ERR_BLOCKED_BY_ORB errors
