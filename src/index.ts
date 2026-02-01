@@ -11,6 +11,7 @@ import authRoutes from './routes/auth';
 import publicRoutes from './routes/public';
 import doctorRoutes from './routes/doctor';
 import campHeadRoutes from './routes/campHead';
+import telegramRoutes from './routes/telegram';
 
 // Load environment variables
 dotenv.config();
@@ -160,6 +161,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/camp-head', campHeadRoutes);
+app.use('/api/telegram', telegramRoutes);
 
 // 404 handler for unknown routes
 app.use(notFoundHandler);

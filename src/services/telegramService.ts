@@ -23,9 +23,14 @@ function escapeMarkdownV2(text: string): string {
 /**
  * Base function to send Telegram message
  * Returns true if sent successfully, false otherwise
+ * 
+ * @param chatIdOrPhoneNumber - Telegram chat ID (preferred) or phone number (for testing)
+ * @param text - Message text
+ * @param parseMode - Telegram parse mode
+ * @returns true if sent successfully, false otherwise
  */
 export async function sendTelegramMessage(
-  phoneNumberOrChatId: string, 
+  chatIdOrPhoneNumber: string, 
   text: string, 
   parseMode: 'Markdown' | 'MarkdownV2' | 'HTML' = 'MarkdownV2'
 ): Promise<boolean> {
@@ -34,27 +39,29 @@ export async function sendTelegramMessage(
     return false;
   }
 
-  // Use test chat ID if phone number provided and TELEGRAM_TEST_CHAT_ID is set
-  // Get your chat ID by messaging your bot and visiting:
-  // https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
-  const TEST_CHAT_ID = process.env.TELEGRAM_TEST_CHAT_ID || '';
+  let chatId = chatIdOrPhoneNumber;
   
-  let chatId = phoneNumberOrChatId;
+  // Check if this is a phone number (not a valid chat ID)
+  const isPhoneNumber = /^[\+]?[0-9\s\-\(\)]+$/.test(chatIdOrPhoneNumber);
   
-  // If it looks like a phone number (contains + or starts with digits)
-  if (/^[\+\d]/.test(phoneNumberOrChatId)) {
+  if (isPhoneNumber) {
+    // Phone number provided - check for test chat ID
+    const TEST_CHAT_ID = process.env.TELEGRAM_TEST_CHAT_ID || '';
+    
     if (TEST_CHAT_ID) {
-      // Use test chat ID (works in both dev and production)
-      console.log(`[Telegram] Using test chat ID for ${phoneNumberOrChatId} (${process.env.NODE_ENV})`);
+      // Development/testing mode - redirect to test chat
+      console.log(`[Telegram] TEST MODE: Redirecting message for ${chatIdOrPhoneNumber} to test chat ${TEST_CHAT_ID}`);
       chatId = TEST_CHAT_ID;
     } else {
-      // No test chat ID configured, skip
-      console.warn(`[Telegram] Skipping: Phone number ${phoneNumberOrChatId} cannot be used (need chat ID or TELEGRAM_TEST_CHAT_ID)`);
+      // Production without chat ID - cannot send
+      console.warn(`[Telegram] SKIPPED: Phone number ${chatIdOrPhoneNumber} provided but no chat ID available.`);
+      console.warn(`[Telegram] To fix: User must message the bot first, or set TELEGRAM_TEST_CHAT_ID for testing.`);
       return false;
     }
   }
 
-  console.log(`[Telegram] Attempting to send message to chat ID: ${chatId}`);
+  // At this point, chatId should be a valid Telegram chat ID
+  console.log(`[Telegram] Sending message to chat ID: ${chatId}`);
 
   try {
     const response = await axios.post(TELEGRAM_API_URL, {
@@ -62,13 +69,13 @@ export async function sendTelegramMessage(
       text,
       parse_mode: parseMode,
     });
-    console.log(`[Telegram] ✓ Message sent successfully to ${chatId}`);
+    console.log(`[Telegram] ✓ Message sent successfully to chat ${chatId}`);
     return true;
   } catch (error: any) {
     const errorMsg = error.response?.data?.description || error.message;
-    console.error('[Telegram] Failed to send message:', {
+    console.error('[Telegram] ✗ Failed to send message:', {
       chatId,
-      phoneNumber: phoneNumberOrChatId,
+      originalInput: chatIdOrPhoneNumber,
       error: errorMsg,
       details: error.response?.data,
       statusCode: error.response?.status
@@ -80,9 +87,15 @@ export async function sendTelegramMessage(
 /**
  * Send photo via Telegram with caption
  * Returns true if sent successfully, false otherwise
+ * 
+ * @param chatIdOrPhoneNumber - Telegram chat ID (preferred) or phone number (for testing)
+ * @param photoBuffer - Image buffer
+ * @param caption - Photo caption
+ * @param parseMode - Telegram parse mode
+ * @returns true if sent successfully, false otherwise
  */
 export async function sendTelegramPhoto(
-  phoneNumberOrChatId: string,
+  chatIdOrPhoneNumber: string,
   photoBuffer: Buffer,
   caption: string,
   parseMode: 'Markdown' | 'MarkdownV2' | 'HTML' = 'MarkdownV2'
@@ -92,21 +105,24 @@ export async function sendTelegramPhoto(
     return false;
   }
 
-  const TEST_CHAT_ID = process.env.TELEGRAM_TEST_CHAT_ID || '';
+  let chatId = chatIdOrPhoneNumber;
   
-  let chatId = phoneNumberOrChatId;
+  // Check if this is a phone number (not a valid chat ID)
+  const isPhoneNumber = /^[\+]?[0-9\s\-\(\)]+$/.test(chatIdOrPhoneNumber);
   
-  if (/^[\+\d]/.test(phoneNumberOrChatId)) {
+  if (isPhoneNumber) {
+    const TEST_CHAT_ID = process.env.TELEGRAM_TEST_CHAT_ID || '';
+    
     if (TEST_CHAT_ID) {
-      console.log(`[Telegram] Using test chat ID for ${phoneNumberOrChatId} (${process.env.NODE_ENV})`);
+      console.log(`[Telegram] TEST MODE: Redirecting photo for ${chatIdOrPhoneNumber} to test chat ${TEST_CHAT_ID}`);
       chatId = TEST_CHAT_ID;
     } else {
-      console.warn(`[Telegram] Skipping: Phone number ${phoneNumberOrChatId} cannot be used (need chat ID or TELEGRAM_TEST_CHAT_ID)`);
+      console.warn(`[Telegram] SKIPPED: Phone number ${chatIdOrPhoneNumber} provided but no chat ID available.`);
       return false;
     }
   }
 
-  console.log(`[Telegram] Attempting to send photo to chat ID: ${chatId}`);
+  console.log(`[Telegram] Sending photo to chat ID: ${chatId}`);
 
   try {
     const FormData = require('form-data');
@@ -119,13 +135,13 @@ export async function sendTelegramPhoto(
     await axios.post(TELEGRAM_PHOTO_URL, form, {
       headers: form.getHeaders(),
     });
-    console.log(`[Telegram] ✓ Photo sent successfully to ${chatId}`);
+    console.log(`[Telegram] ✓ Photo sent successfully to chat ${chatId}`);
     return true;
   } catch (error: any) {
     const errorMsg = error.response?.data?.description || error.message;
-    console.error('[Telegram] Failed to send photo:', {
+    console.error('[Telegram] ✗ Failed to send photo:', {
       chatId,
-      phoneNumber: phoneNumberOrChatId,
+      originalInput: chatIdOrPhoneNumber,
       error: errorMsg,
       details: error.response?.data,
       statusCode: error.response?.status
@@ -137,6 +153,9 @@ export async function sendTelegramPhoto(
 /**
  * Send registration confirmation via Telegram
  * This is called after a visitor successfully registers
+ * 
+ * @param camp - Camp information
+ * @param visitor - Visitor information (must have telegramChatId or uses phone for testing)
  */
 export async function sendRegistrationTelegram(camp: Camp, visitor: Visitor): Promise<void> {
   const campName = escapeMarkdownV2(camp.name);
@@ -206,16 +225,26 @@ _Thank you for registering\\!_
     status: MessageStatus.PENDING
   });
 
-  const success = await sendTelegramPhoto(visitor.phone, qrBuffer, caption, 'MarkdownV2');
+  // Use telegramChatId if available, otherwise fall back to phone number (for testing)
+  const recipient = visitor.telegramChatId || visitor.phone;
+  const isUsingChatId = !!visitor.telegramChatId;
+  
+  if (!isUsingChatId) {
+    console.log(`[Telegram] No chat ID for visitor ${visitor.patientIdPerCamp}. Using phone number (test mode only).`);
+  }
+
+  const success = await sendTelegramPhoto(recipient, qrBuffer, caption, 'MarkdownV2');
   
   if (success) {
     log.status = MessageStatus.SENT;
     log.sentAt = new Date();
-    console.log(`[Telegram] ✓ Registration sent to ${visitor.phone} (${visitor.patientIdPerCamp})`);
+    console.log(`[Telegram] ✓ Registration confirmation sent to visitor ${visitor.patientIdPerCamp}`);
   } else {
     log.status = MessageStatus.FAILED;
-    log.errorMessage = 'Phone number not supported in production. Need chat ID.';
-    console.warn(`[Telegram] ✗ Registration NOT sent to ${visitor.phone} (${visitor.patientIdPerCamp})`);
+    log.errorMessage = isUsingChatId 
+      ? 'Failed to send message to chat ID' 
+      : 'No Telegram chat ID available. User needs to message the bot first.';
+    console.warn(`[Telegram] ✗ Registration NOT sent to visitor ${visitor.patientIdPerCamp}`);
   }
 
   await logRepo.save(log);
@@ -223,6 +252,10 @@ _Thank you for registering\\!_
 
 /**
  * Send consultation completion notification via Telegram
+ * 
+ * @param camp - Camp information
+ * @param visitor - Visitor information (must have telegramChatId or uses phone for testing)
+ * @param consultationSummary - Summary of the consultation
  */
 export async function sendConsultationCompleteTelegram(
   camp: Camp, 
@@ -265,14 +298,20 @@ Thank you for visiting ${campName}\\!
     status: MessageStatus.PENDING
   });
 
-  const success = await sendTelegramMessage(visitor.phone, message, 'MarkdownV2');
+  // Use telegramChatId if available, otherwise fall back to phone number (for testing)
+  const recipient = visitor.telegramChatId || visitor.phone;
+  const isUsingChatId = !!visitor.telegramChatId;
+
+  const success = await sendTelegramMessage(recipient, message, 'MarkdownV2');
   
   if (success) {
     log.status = MessageStatus.SENT;
     log.sentAt = new Date();
   } else {
     log.status = MessageStatus.FAILED;
-    log.errorMessage = 'Phone number not supported in production. Need chat ID.';
+    log.errorMessage = isUsingChatId 
+      ? 'Failed to send message to chat ID' 
+      : 'No Telegram chat ID available. User needs to message the bot first.';
   }
 
   await logRepo.save(log);

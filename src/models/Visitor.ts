@@ -55,6 +55,11 @@ export class Visitor {
   @Column({ type: 'text', nullable: true })
   qrCode: string;
 
+  // Telegram chat ID for sending notifications
+  // Users must message the bot first to get their chat ID
+  @Column({ type: 'text', nullable: true, name: 'telegram_chat_id' })
+  telegramChatId: string;
+
   @OneToMany(() => Visit, visit => visit.visitor)
   visits: Visit[];
 
