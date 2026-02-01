@@ -11,7 +11,8 @@
     "start": "node dist/index.js",
     "test": "jest",
     "db:migrate": "node -r dotenv/config node_modules/.bin/typeorm migration:run",
-    "db:generate": "node -r dotenv/config node_modules/.bin/typeorm migration:generate"
+    "db:generate": "node -r dotenv/config node_modules/.bin/typeorm migration:generate",
+    "check:telegram": "node check-telegram-config.js"
   },
   "dependencies": {
     "@types/form-data": "^2.2.1",

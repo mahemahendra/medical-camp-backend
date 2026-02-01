@@ -148,10 +148,22 @@ export const getVisitSummary = async (req: Request, res: Response) => {
  */
 async function sendRegistrationConfirmation(camp: Camp, visitor: Visitor) {
   try {
+    // Check if Telegram is properly configured
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.warn('[Registration] Telegram bot token not configured, skipping notification');
+      return;
+    }
+
     // Send via Telegram
     await sendRegistrationTelegram(camp, visitor);
+    console.log(`[Registration] ✓ Telegram sent to ${visitor.phone}`);
   } catch (error: any) {
-    console.error('[Registration] Failed to send confirmation:', error.message);
+    console.error('[Registration] Failed to send Telegram confirmation:', {
+      visitorId: visitor.id,
+      phone: visitor.phone,
+      error: error.message,
+      stack: error.stack
+    });
     // Don't fail the registration if messaging fails
     // Log is already saved in the telegramService
   }

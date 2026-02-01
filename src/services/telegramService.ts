@@ -29,7 +29,9 @@ export async function sendTelegramMessage(
   parseMode: 'Markdown' | 'MarkdownV2' | 'HTML' = 'MarkdownV2'
 ): Promise<void> {
   if (!TELEGRAM_BOT_TOKEN) {
-    throw new Error('Telegram bot token not configured. Set TELEGRAM_BOT_TOKEN in environment variables.');
+    const errorMsg = 'Telegram bot token not configured. Set TELEGRAM_BOT_TOKEN in environment variables.';
+    console.error('[Telegram] ' + errorMsg);
+    throw new Error(errorMsg);
   }
 
   // In development/testing mode, use a test chat ID if phone number provided
@@ -41,24 +43,33 @@ export async function sendTelegramMessage(
   
   // If it looks like a phone number (contains + or starts with digits), use test chat ID
   if (process.env.NODE_ENV === 'development' && TEST_CHAT_ID && /^[\+\d]/.test(phoneNumberOrChatId)) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Telegram] Dev mode: Using test chat ID for ${phoneNumberOrChatId}`);
-    }
+    console.log(`[Telegram] Dev mode: Using test chat ID for ${phoneNumberOrChatId}`);
     chatId = TEST_CHAT_ID;
+  } else if (process.env.NODE_ENV !== 'development' && /^[\+\d]/.test(phoneNumberOrChatId)) {
+    // Production: phone numbers won't work, need chat IDs
+    console.warn(`[Telegram] Production mode: Cannot send to phone number ${phoneNumberOrChatId}. Need chat ID.`);
+    console.warn('[Telegram] Telegram requires users to message the bot first to get their chat ID.');
+    console.warn('[Telegram] Implement a webhook or ask users to message the bot to capture their chat IDs.');
+    throw new Error('Cannot send Telegram message: Phone numbers are not supported. Need chat ID.');
   }
 
+  console.log(`[Telegram] Attempting to send message to chat ID: ${chatId}`);
+
   try {
-    await axios.post(TELEGRAM_API_URL, {
+    const response = await axios.post(TELEGRAM_API_URL, {
       chat_id: chatId,
       text,
       parse_mode: parseMode,
     });
+    console.log(`[Telegram] Message sent successfully to ${chatId}`);
   } catch (error: any) {
     const errorMsg = error.response?.data?.description || error.message;
     console.error('[Telegram] Failed to send message:', {
       chatId,
+      phoneNumber: phoneNumberOrChatId,
       error: errorMsg,
-      details: error.response?.data
+      details: error.response?.data,
+      statusCode: error.response?.status
     });
     throw new Error(`Failed to send Telegram message: ${errorMsg}`);
   }
@@ -74,7 +85,9 @@ export async function sendTelegramPhoto(
   parseMode: 'Markdown' | 'MarkdownV2' | 'HTML' = 'MarkdownV2'
 ): Promise<void> {
   if (!TELEGRAM_BOT_TOKEN) {
-    throw new Error('Telegram bot token not configured. Set TELEGRAM_BOT_TOKEN in environment variables.');
+    const errorMsg = 'Telegram bot token not configured. Set TELEGRAM_BOT_TOKEN in environment variables.';
+    console.error('[Telegram] ' + errorMsg);
+    throw new Error(errorMsg);
   }
 
   const TEST_CHAT_ID = process.env.TELEGRAM_TEST_CHAT_ID || '';
@@ -82,11 +95,15 @@ export async function sendTelegramPhoto(
   let chatId = phoneNumberOrChatId;
   
   if (process.env.NODE_ENV === 'development' && TEST_CHAT_ID && /^[\+\d]/.test(phoneNumberOrChatId)) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Telegram] Dev mode: Using test chat ID for ${phoneNumberOrChatId}`);
-    }
+    console.log(`[Telegram] Dev mode: Using test chat ID for ${phoneNumberOrChatId}`);
     chatId = TEST_CHAT_ID;
+  } else if (process.env.NODE_ENV !== 'development' && /^[\+\d]/.test(phoneNumberOrChatId)) {
+    console.warn(`[Telegram] Production mode: Cannot send to phone number ${phoneNumberOrChatId}. Need chat ID.`);
+    console.warn('[Telegram] Telegram requires users to message the bot first to get their chat ID.');
+    throw new Error('Cannot send Telegram photo: Phone numbers are not supported. Need chat ID.');
   }
+
+  console.log(`[Telegram] Attempting to send photo to chat ID: ${chatId}`);
 
   try {
     const FormData = require('form-data');
@@ -99,12 +116,15 @@ export async function sendTelegramPhoto(
     await axios.post(TELEGRAM_PHOTO_URL, form, {
       headers: form.getHeaders(),
     });
+    console.log(`[Telegram] Photo sent successfully to ${chatId}`);
   } catch (error: any) {
     const errorMsg = error.response?.data?.description || error.message;
     console.error('[Telegram] Failed to send photo:', {
       chatId,
+      phoneNumber: phoneNumberOrChatId,
       error: errorMsg,
-      details: error.response?.data
+      details: error.response?.data,
+      statusCode: error.response?.status
     });
     throw new Error(`Failed to send Telegram photo: ${errorMsg}`);
   }

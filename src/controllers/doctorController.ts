@@ -280,7 +280,9 @@ export const saveConsultation = async (req: AuthRequest, res: Response) => {
   await visitRepo.save(visit);
 
   // Send Telegram message to visitor with consultation summary
-  await sendConsultationNotification(campId, visit.visitor, consultation);
+  if (consultation) {
+    await sendConsultationNotification(campId, visit.visitor, consultation);
+  }
 
   res.json({ consultation, message: 'Consultation saved successfully' });
 };
