@@ -48,35 +48,30 @@ router.post('/camps', [
   body('hospitalName')
     .notEmpty().withMessage('Hospital name is required')
     .trim()
-    .escape()
     .isLength({ max: 200 }).withMessage('Hospital name too long'),
   body('hospitalAddress')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
-    .escape()
     .isLength({ max: 500 }).withMessage('Address too long'),
   body('hospitalPhone')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone format'),
   body('hospitalEmail')
-    .optional()
+    .optional({ values: 'falsy' })
     .isEmail().withMessage('Invalid email format')
     .normalizeEmail(),
   body('name')
     .notEmpty().withMessage('Camp name is required')
     .trim()
-    .escape()
     .isLength({ max: 200 }).withMessage('Camp name too long'),
   body('description')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
-    .escape()
     .isLength({ max: 2000 }).withMessage('Description too long'),
   body('venue')
     .notEmpty().withMessage('Venue is required')
     .trim()
-    .escape()
     .isLength({ max: 500 }).withMessage('Venue too long'),
   body('startTime')
     .notEmpty().withMessage('Start time is required')
@@ -84,19 +79,22 @@ router.post('/camps', [
   body('endTime')
     .notEmpty().withMessage('End time is required')
     .isISO8601().withMessage('Invalid end time format'),
+  body('contactInfo')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ max: 500 }).withMessage('Contact info too long'),
   body('campHead')
     .isObject().withMessage('Camp head details are required'),
   body('campHead.name')
     .notEmpty().withMessage('Camp head name is required')
     .trim()
-    .escape()
     .isLength({ max: 100 }).withMessage('Name too long'),
   body('campHead.email')
     .notEmpty().withMessage('Camp head email is required')
     .isEmail().withMessage('Invalid email format')
     .normalizeEmail(),
   body('campHead.phone')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone format'),
   body('doctors')
@@ -104,17 +102,19 @@ router.post('/camps', [
   body('doctors.*.name')
     .notEmpty().withMessage('Doctor name is required')
     .trim()
-    .escape()
     .isLength({ max: 100 }).withMessage('Name too long'),
   body('doctors.*.email')
     .notEmpty().withMessage('Doctor email is required')
     .isEmail().withMessage('Invalid email format')
     .normalizeEmail(),
   body('doctors.*.specialty')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
-    .escape()
-    .isLength({ max: 100 }).withMessage('Specialty too long')
+    .isLength({ max: 100 }).withMessage('Specialty too long'),
+  body('doctors.*.phone')
+    .optional({ values: 'falsy' })
+    .trim()
+    .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone format')
 ], asyncHandler(adminController.createCamp));
 
 /**
