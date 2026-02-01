@@ -18,6 +18,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy - Required when behind reverse proxy (Render, Heroku, Nginx, etc.)
+// This enables rate limiting and IP detection to work correctly
+app.set('trust proxy', 1);
+
 // Security Middleware - Helmet adds security headers
 // In development, disable CSP to avoid blocking localhost requests
 const isDevelopment = process.env.NODE_ENV !== 'production';
