@@ -156,16 +156,14 @@ async function sendRegistrationConfirmation(camp: Camp, visitor: Visitor) {
 
     // Send via Telegram
     await sendRegistrationTelegram(camp, visitor);
-    console.log(`[Registration] ✓ Telegram sent to ${visitor.phone}`);
+    // Success logging now handled inside sendRegistrationTelegram
   } catch (error: any) {
     console.error('[Registration] Failed to send Telegram confirmation:', {
       visitorId: visitor.id,
       phone: visitor.phone,
-      error: error.message,
-      stack: error.stack
+      error: error.message
     });
     // Don't fail the registration if messaging fails
-    // Log is already saved in the telegramService
   }
 }
 
