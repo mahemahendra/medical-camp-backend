@@ -66,6 +66,20 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
     .groupBy('doctor.id, doctor.name')
     .getRawMany();
 
+  // Follow-up advice distribution
+  const followUpStats = await visitRepo
+    .createQueryBuilder('visit')
+    .innerJoin('visit.consultation', 'consultation')
+    .select('consultation.followUpAdvice', 'followUpAdvice')
+    .addSelect('COUNT(*)', 'count')
+    .where('visit.campId = :campId', { campId })
+    .andWhere('consultation.followUpAdvice IS NOT NULL')
+    .andWhere('consultation.followUpAdvice != \'\'')
+    .groupBy('consultation.followUpAdvice')
+    .getRawMany();
+
+  console.log('Follow-up stats query result:', followUpStats);
+
   res.json({
     analytics: {
       totalVisitors,
@@ -74,7 +88,8 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
       pendingVisits: totalVisits - completedVisits,
       genderDistribution: genderStats,
       ageDistribution: ageGroups,
-      doctorStats
+      doctorStats,
+      followUpDistribution: followUpStats
     }
   });
 };

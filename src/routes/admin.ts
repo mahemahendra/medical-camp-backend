@@ -170,6 +170,15 @@ router.get('/camps/:campId/doctors', [
 ], asyncHandler(adminController.getCampDoctors));
 
 /**
+ * GET /api/admin/camps/:campId/camp-head
+ * Get camp head for a specific camp
+ */
+router.get('/camps/:campId/camp-head', [
+  param('campId')
+    .isUUID().withMessage('Invalid camp ID format')
+], asyncHandler(adminController.getCampHead));
+
+/**
  * POST /api/admin/doctors/:doctorId/reset-password
  * Reset password for a doctor
  */
@@ -177,5 +186,14 @@ router.post('/doctors/:doctorId/reset-password', [
   param('doctorId')
     .isUUID().withMessage('Invalid doctor ID format')
 ], asyncHandler(adminController.resetDoctorPassword));
+
+/**
+ * POST /api/admin/camp-heads/:campHeadId/reset-password
+ * Reset password for a camp head
+ */
+router.post('/camp-heads/:campHeadId/reset-password', [
+  param('campHeadId')
+    .isUUID().withMessage('Invalid camp head ID format')
+], asyncHandler(adminController.resetCampHeadPassword));
 
 export default router;

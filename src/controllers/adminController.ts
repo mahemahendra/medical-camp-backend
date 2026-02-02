@@ -210,6 +210,43 @@ export const getCampDoctors = async (req: AuthRequest, res: Response) => {
   res.json({ doctors });
 };
 
+export const getCampHead = async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { campId } = req.params;
+
+  const userRepo = AppDataSource.getRepository(User);
+
+  console.log(`[Admin] Fetching camp head for campId: ${campId}`);
+
+  // First, let's see all camp head users in the database
+  const allCampHeads = await userRepo.find({
+    where: {
+      role: UserRole.CAMP_HEAD
+    },
+    select: ['id', 'name', 'email', 'campId']
+  });
+  console.log(`[Admin] All camp heads in database:`, allCampHeads);
+
+  const campHead = await userRepo.findOne({
+    where: {
+      campId: campId,
+      role: UserRole.CAMP_HEAD
+    }
+  });
+
+  if (!campHead) {
+    console.log(`[Admin] No camp head found for campId: ${campId}`);
+    return res.status(404).json({ message: 'Camp Head not found for this camp' });
+  }
+
+  console.log(`[Admin] Found camp head: ${campHead.name} (${campHead.email})`);
+  res.json({ campHead });
+};
+
 export const resetDoctorPassword = async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -260,6 +297,60 @@ export const resetDoctorPassword = async (req: AuthRequest, res: Response) => {
     tempPassword,
     doctorName: doctor.name,
     doctorEmail: doctor.email,
+    passwordMode: passwordMode || 'auto'
+  });
+};
+
+export const resetCampHeadPassword = async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { campHeadId } = req.params;
+  const { passwordMode, manualPassword } = req.body;
+
+  const userRepo = AppDataSource.getRepository(User);
+
+  // Find the camp head
+  const campHead = await userRepo.findOne({
+    where: {
+      id: campHeadId,
+      role: UserRole.CAMP_HEAD
+    }
+  });
+
+  if (!campHead) {
+    return res.status(404).json({ message: 'Camp Head not found' });
+  }
+
+  // Generate or use manual password
+  const isManual = passwordMode === 'manual';
+  const tempPassword = isManual ? manualPassword : nanoid(12);
+
+  // Validate manual password if provided
+  if (isManual) {
+    if (!manualPassword || manualPassword.length < 8) {
+      return res.status(400).json({ message: 'Manual password must be at least 8 characters long' });
+    }
+  }
+
+  const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+  // Update camp head's password
+  await userRepo.update(campHeadId, { passwordHash: hashedPassword });
+
+  // Verify the password was actually updated
+  const updatedCampHead = await userRepo.findOne({ where: { id: campHeadId } });
+  console.log(`Password reset for camp head ${campHead.name} (${campHead.email})`);
+  console.log(`New password: ${tempPassword}`);
+  console.log(`Password hash updated: ${updatedCampHead?.passwordHash !== campHead.passwordHash}`);
+
+  res.json({
+    message: 'Password reset successfully',
+    tempPassword,
+    campHeadName: campHead.name,
+    campHeadEmail: campHead.email,
     passwordMode: passwordMode || 'auto'
   });
 };
