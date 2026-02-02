@@ -167,7 +167,7 @@ export const getVisitorByQR = async (req: AuthRequest, res: Response) => {
   // Get or create visit for this visitor
   let visit = await visitRepo.findOne({
     where: { visitorId: visitor.id, campId: doctorCampId },
-    relations: ['consultation'],
+    relations: ['consultation', 'attachments'],
     order: { createdAt: 'DESC' }
   });
 
@@ -181,7 +181,13 @@ export const getVisitorByQR = async (req: AuthRequest, res: Response) => {
     await visitRepo.save(visit);
   }
 
-  res.json({ visitor, visit, camp: visitor.camp });
+  // Attach visitor data to visit object for frontend
+  const visitWithVisitor = {
+    ...visit,
+    visitor: visitor
+  };
+
+  res.json({ visitor, visit: visitWithVisitor, camp: visitor.camp });
 };
 
 export const getVisitorDetails = async (req: AuthRequest, res: Response) => {
