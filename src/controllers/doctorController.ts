@@ -213,26 +213,6 @@ export const getVisitorDetails = async (req: AuthRequest, res: Response) => {
   res.json({ visitor, visits });
 };
 
-/**
- * Get visit details with attachments and full visitor data
- */
-export const getVisitWithAttachments = async (req: AuthRequest, res: Response) => {
-  const { campId, visitId } = req.params;
-
-  const visitRepo = AppDataSource.getRepository(Visit);
-  
-  const visit = await visitRepo.findOne({
-    where: { id: visitId, campId },
-    relations: ['visitor', 'consultation', 'attachments', 'doctor']
-  });
-
-  if (!visit) {
-    return res.status(404).json({ error: 'Visit not found' });
-  }
-
-  res.json({ visit });
-};
-
 export const saveConsultation = async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
