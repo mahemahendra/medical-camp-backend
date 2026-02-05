@@ -177,8 +177,7 @@ export async function sendRegistrationTelegram(camp: Camp, visitor: Visitor): Pr
 
   // Generate QR code image buffer with direct URL for doctors to scan
   // Note: Frontend uses HashRouter, so URL must include #
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const qrCodeUrl = `${frontendUrl}/#/${camp.uniqueSlug}/doctor/visitor/${visitor.id}`;
+  const qrCodeUrl = `${encodeURIComponent(visitor.patientIdPerCamp)}`;
   const qrBuffer = await QRCode.toBuffer(qrCodeUrl, {
     errorCorrectionLevel: 'M',
     type: 'png',
