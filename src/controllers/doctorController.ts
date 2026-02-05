@@ -35,16 +35,32 @@ export const listVisitors = async (req: AuthRequest, res: Response) => {
   const { date, status } = req.query;
 
   const visitRepo = AppDataSource.getRepository(Visit);
-  const where: any = { campId };
+  
+  const queryBuilder = visitRepo
+    .createQueryBuilder('visit')
+    .select([
+      'visit.id',
+      'visit.status',
+      'visit.createdAt',
+      'visitor.id',
+      'visitor.name',
+      'visitor.patientIdPerCamp',
+      'visitor.age',
+      'visitor.gender',
+      'visitor.phone',
+      'visitor.symptoms',
+      'consultation.isInsured'
+    ])
+    .leftJoin('visit.visitor', 'visitor')
+    .leftJoin('visit.consultation', 'consultation')
+    .where('visit.campId = :campId', { campId })
+    .orderBy('visit.createdAt', 'DESC');
 
-  if (status) where.status = status;
+  if (status) {
+    queryBuilder.andWhere('visit.status = :status', { status });
+  }
 
-  const visits = await visitRepo.find({
-    where,
-    relations: ['visitor', 'doctor', 'consultation'],
-    order: { createdAt: 'DESC' }
-  });
-
+  const visits = await queryBuilder.getMany();
   res.json({ visits });
 };
 
@@ -63,8 +79,20 @@ export const listMyPatients = async (req: AuthRequest, res: Response) => {
 
   let queryBuilder = visitRepo
     .createQueryBuilder('visit')
-    .leftJoinAndSelect('visit.visitor', 'visitor')
-    .leftJoinAndSelect('visit.consultation', 'consultation')
+    .select([
+      'visit.id',
+      'visit.status', 
+      'visit.consultationTime',
+      'visitor.id',
+      'visitor.name',
+      'visitor.patientIdPerCamp',
+      'visitor.age',
+      'visitor.gender',
+      'visitor.phone',
+      'consultation.diagnosis'
+    ])
+    .leftJoin('visit.visitor', 'visitor')
+    .leftJoin('visit.consultation', 'consultation')
     .where('visit.campId = :campId', { campId })
     .andWhere('visit.doctorId = :doctorId', { doctorId })
     .andWhere('visit.status = :status', { status: VisitStatus.COMPLETED });
@@ -85,7 +113,12 @@ export const listMyPatients = async (req: AuthRequest, res: Response) => {
 
   // Transform to visitor format with status
   const visitors = visits.map(visit => ({
-    ...visit.visitor,
+    id: visit.visitor.id,
+    name: visit.visitor.name,
+    patientIdPerCamp: visit.visitor.patientIdPerCamp,
+    age: visit.visitor.age,
+    gender: visit.visitor.gender,
+    phone: visit.visitor.phone,
     latestStatus: visit.status,
     consultationDate: visit.consultationTime,
     diagnosis: visit.consultation?.diagnosis
@@ -110,12 +143,24 @@ export const searchVisitor = async (req: AuthRequest, res: Response) => {
 
   const visitRepo = AppDataSource.getRepository(Visit);
   
-  // Search across visitor fields and return visits (same structure as listVisitors)
+  // Search across visitor fields and return only necessary data
   const visits = await visitRepo
     .createQueryBuilder('visit')
-    .leftJoinAndSelect('visit.visitor', 'visitor')
-    .leftJoinAndSelect('visit.doctor', 'doctor') 
-    .leftJoinAndSelect('visit.consultation', 'consultation')
+    .select([
+      'visit.id',
+      'visit.status',
+      'visit.createdAt',
+      'visitor.id',
+      'visitor.name',
+      'visitor.patientIdPerCamp',
+      'visitor.age',
+      'visitor.gender',
+      'visitor.phone',
+      'visitor.symptoms',
+      'consultation.isInsured'
+    ])
+    .leftJoin('visit.visitor', 'visitor')
+    .leftJoin('visit.consultation', 'consultation')
     .where('visit.campId = :campId', { campId })
     .andWhere(
       '(visitor.patientIdPerCamp LIKE :query OR visitor.phone LIKE :query OR visitor.name LIKE :query)',
@@ -285,21 +330,59 @@ export const getVisitWithAttachments = async (req: AuthRequest, res: Response) =
   const { campId, visitId } = req.params;
 
   const visitRepo = AppDataSource.getRepository(Visit);
-  const visit = await visitRepo.findOne({
-    where: { id: visitId, campId },
-    relations: ['visitor', 'doctor', 'consultation']
-  });
+  
+  // Only select fields needed by consultation modal
+  const visit = await visitRepo
+    .createQueryBuilder('visit')
+    .select([
+      'visit.id',
+      'visit.status',
+      'visit.createdAt',
+      'visitor.id',
+      'visitor.name',
+      'visitor.patientIdPerCamp',
+      'visitor.age',
+      'visitor.gender',
+      'visitor.phone',
+      'visitor.city',
+      'visitor.address',
+      'visitor.symptoms',
+      'visitor.existingConditions',
+      'visitor.allergies',
+      'consultation.id',
+      'consultation.chiefComplaints',
+      'consultation.clinicalNotes',
+      'consultation.diagnosis',
+      'consultation.treatmentPlan',
+      'consultation.prescriptions',
+      'consultation.followUpAdvice',
+      'consultation.isInsured'
+    ])
+    .leftJoin('visit.visitor', 'visitor')
+    .leftJoin('visit.consultation', 'consultation')
+    .where('visit.id = :visitId', { visitId })
+    .andWhere('visit.campId = :campId', { campId })
+    .getOne();
 
   if (!visit) {
     return res.status(404).json({ error: 'Visit not found' });
   }
 
-  // Get attachments separately
+  // Get attachments with only necessary fields
   const attachmentRepo = AppDataSource.getRepository(Attachment);
-  const attachments = await attachmentRepo.find({
-    where: { visitId, campId },
-    order: { createdAt: 'DESC' }
-  });
+  const attachments = await attachmentRepo
+    .createQueryBuilder('attachment')
+    .select([
+      'attachment.id',
+      'attachment.fileName',
+      'attachment.fileUrl',
+      'attachment.type',
+      'attachment.fileSize'
+    ])
+    .where('attachment.visitId = :visitId', { visitId })
+    .andWhere('attachment.campId = :campId', { campId })
+    .orderBy('attachment.createdAt', 'DESC')
+    .getMany();
 
   const backendUrl = getBackendUrl(req);
 
@@ -322,8 +405,11 @@ export const getVisitWithAttachments = async (req: AuthRequest, res: Response) =
     }
 
     return {
-      ...attachment,
-      fileUrl
+      id: attachment.id,
+      fileName: attachment.fileName,
+      fileUrl,
+      type: attachment.type,
+      fileSize: attachment.fileSize
     };
   });
 
