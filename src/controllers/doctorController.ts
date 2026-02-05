@@ -108,35 +108,23 @@ export const searchVisitor = async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'Search query required' });
   }
 
-  const visitorRepo = AppDataSource.getRepository(Visitor);
-  let where: any = { campId };
+  const visitRepo = AppDataSource.getRepository(Visit);
+  
+  // Search across visitor fields and return visits (same structure as listVisitors)
+  const visits = await visitRepo
+    .createQueryBuilder('visit')
+    .leftJoinAndSelect('visit.visitor', 'visitor')
+    .leftJoinAndSelect('visit.doctor', 'doctor') 
+    .leftJoinAndSelect('visit.consultation', 'consultation')
+    .where('visit.campId = :campId', { campId })
+    .andWhere(
+      '(visitor.patientIdPerCamp LIKE :query OR visitor.phone LIKE :query OR visitor.name LIKE :query)',
+      { query: `%${query}%` }
+    )
+    .orderBy('visit.createdAt', 'DESC')
+    .getMany();
 
-  switch (searchBy) {
-    case 'patientId':
-      where.patientIdPerCamp = Like(`%${query}%`);
-      break;
-    case 'phone':
-      where.phone = Like(`%${query}%`);
-      break;
-    case 'name':
-      where.name = Like(`%${query}%`);
-      break;
-    default:
-      // Search across multiple fields
-      const visitors = await visitorRepo
-        .createQueryBuilder('visitor')
-        .where('visitor.campId = :campId', { campId })
-        .andWhere(
-          '(visitor.patientIdPerCamp LIKE :query OR visitor.phone LIKE :query OR visitor.name LIKE :query)',
-          { query: `%${query}%` }
-        )
-        .getMany();
-
-      return res.json({ visitors });
-  }
-
-  const visitors = await visitorRepo.find({ where });
-  res.json({ visitors });
+  res.json({ visits });
 };
 
 /**
