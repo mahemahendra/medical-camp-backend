@@ -87,12 +87,8 @@ export const registerVisitor = async (req: Request, res: Response) => {
   const count = await visitorRepo.count({ where: { campId: camp.id } });
   const patientIdPerCamp = `${camp.uniqueSlug.toUpperCase()}-${String(count + 1).padStart(4, '0')}`;
 
-  // Generate QR code
-  const qrData = JSON.stringify({
-    campId: camp.id,
-    patientId: patientIdPerCamp
-  });
-  const qrCode = await QRCode.toDataURL(qrData);
+  // Generate QR code with only the patient ID
+  const qrCode = await QRCode.toDataURL(patientIdPerCamp);
 
   // Create visitor
   const visitor = visitorRepo.create({
