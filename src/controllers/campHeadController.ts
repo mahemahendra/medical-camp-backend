@@ -7,6 +7,7 @@ import { AppDataSource } from '../database';
 import { Visitor } from '../models/Visitor';
 import { Visit, VisitStatus } from '../models/Visit';
 import { User, UserRole } from '../models/User';
+import { FollowUp } from '../models/FollowUp';
 import { Like } from 'typeorm';
 
 /**
@@ -80,6 +81,23 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
 
   console.log('Follow-up stats query result:', followUpStats);
 
+  // Sales team follow-up status distribution from follow_ups table
+  const followUpRepo = AppDataSource.getRepository(FollowUp);
+  const salesFollowUpStats = await followUpRepo
+    .createQueryBuilder('followUp')
+    .select('followUp.status', 'status')
+    .addSelect('COUNT(*)', 'count')
+    .where('followUp.campId = :campId', { campId })
+    .groupBy('followUp.status')
+    .getRawMany();
+
+  // Count visitors with completed consultations but no follow-up yet
+  const totalCompletedVisitors = await visitRepo.count({
+    where: { campId, status: VisitStatus.COMPLETED }
+  });
+  const totalFollowedUp = await followUpRepo.count({ where: { campId } });
+  const totalPendingSales = totalCompletedVisitors - totalFollowedUp;
+
   res.json({
     analytics: {
       totalVisitors,
@@ -89,7 +107,13 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
       genderDistribution: genderStats,
       ageDistribution: ageGroups,
       doctorStats,
-      followUpDistribution: followUpStats
+      followUpDistribution: followUpStats,
+      salesFollowUpDistribution: salesFollowUpStats,
+      salesSummary: {
+        totalCompleted: totalCompletedVisitors,
+        totalFollowedUp,
+        totalPending: totalPendingSales
+      }
     }
   });
 };
