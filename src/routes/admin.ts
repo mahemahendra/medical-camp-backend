@@ -23,6 +23,9 @@ const parseMultipartJson = (req: any, res: any, next: any) => {
     if (req.body.doctors && typeof req.body.doctors === 'string') {
       req.body.doctors = JSON.parse(req.body.doctors);
     }
+    if (req.body.salesUsers && typeof req.body.salesUsers === 'string') {
+      req.body.salesUsers = JSON.parse(req.body.salesUsers);
+    }
     if (req.body.passwordSettings && typeof req.body.passwordSettings === 'string') {
       req.body.passwordSettings = JSON.parse(req.body.passwordSettings);
     }
@@ -114,6 +117,23 @@ router.post('/camps', [
   body('doctors.*.phone')
     .optional({ values: 'falsy' })
     .trim()
+    .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone format'),
+  body('salesUsers')
+    .optional()
+    .isArray().withMessage('Sales users must be an array'),
+  body('salesUsers.*.name')
+    .optional()
+    .notEmpty().withMessage('Sales user name is required')
+    .trim()
+    .isLength({ max: 100 }).withMessage('Name too long'),
+  body('salesUsers.*.email')
+    .optional()
+    .notEmpty().withMessage('Sales user email is required')
+    .isEmail().withMessage('Invalid email format')
+    .normalizeEmail(),
+  body('salesUsers.*.phone')
+    .optional({ values: 'falsy' })
+    .trim()
     .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone format')
 ], asyncHandler(adminController.createCamp));
 
@@ -195,5 +215,44 @@ router.post('/camp-heads/:campHeadId/reset-password', [
   param('campHeadId')
     .isUUID().withMessage('Invalid camp head ID format')
 ], asyncHandler(adminController.resetCampHeadPassword));
+
+/**
+ * GET /api/admin/camps/:campId/sales-users
+ * Get sales users for a specific camp
+ */
+router.get('/camps/:campId/sales-users', [
+  param('campId')
+    .isUUID().withMessage('Invalid camp ID format')
+], asyncHandler(adminController.getCampSalesUsers));
+
+/**
+ * POST /api/admin/camps/:campId/sales-users
+ * Add a new sales user to an existing camp
+ */
+router.post('/camps/:campId/sales-users', [
+  param('campId')
+    .isUUID().withMessage('Invalid camp ID format'),
+  body('name')
+    .notEmpty().withMessage('Name is required')
+    .trim()
+    .isLength({ max: 100 }).withMessage('Name too long'),
+  body('email')
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format')
+    .normalizeEmail(),
+  body('phone')
+    .optional({ values: 'falsy' })
+    .trim()
+    .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone format')
+], asyncHandler(adminController.addSalesUser));
+
+/**
+ * POST /api/admin/sales-users/:salesUserId/reset-password
+ * Reset password for a sales user
+ */
+router.post('/sales-users/:salesUserId/reset-password', [
+  param('salesUserId')
+    .isUUID().withMessage('Invalid sales user ID format')
+], asyncHandler(adminController.resetSalesUserPassword));
 
 export default router;

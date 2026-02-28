@@ -4,7 +4,8 @@ import { Camp } from './Camp';
 export enum UserRole {
   ADMIN = 'ADMIN',
   CAMP_HEAD = 'CAMP_HEAD',
-  DOCTOR = 'DOCTOR'
+  DOCTOR = 'DOCTOR',
+  SALES = 'SALES'
 }
 
 /**

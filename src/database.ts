@@ -9,16 +9,23 @@ import { Visit } from './models/Visit';
 import { Consultation } from './models/Consultation';
 import { Attachment } from './models/Attachment';
 import { WhatsAppMessageLog } from './models/WhatsAppMessageLog';
+import { FollowUp } from './models/FollowUp';
+
+// Pick database URL based on environment
+const isProduction = process.env.NODE_ENV === 'production';
+const resolvedDatabaseUrl =
+  process.env.DATABASE_URL || // explicit override always wins
+  (isProduction ? process.env.DATABASE_URL_PROD : process.env.DATABASE_URL_LOCAL);
 
 // Enable SSL for Render/external Postgres even in development
 const shouldEnableSSL = Boolean(
   process.env.DATABASE_SSL === 'true' ||
-  process.env.DATABASE_URL?.includes('render.com') ||
-  process.env.NODE_ENV === 'production'
+  resolvedDatabaseUrl?.includes('render.com') ||
+  isProduction
 );
 
 // Clean DATABASE_URL by removing query parameters (TypeORM doesn't handle them well)
-const databaseUrl = process.env.DATABASE_URL?.split('?')[0];
+const databaseUrl = resolvedDatabaseUrl?.split('?')[0];
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -33,7 +40,8 @@ export const AppDataSource = new DataSource({
     Visit,
     Consultation,
     Attachment,
-    WhatsAppMessageLog
+    WhatsAppMessageLog,
+    FollowUp
   ],
   migrations: ['src/migrations/**/*.ts'],
   subscribers: []

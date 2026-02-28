@@ -19,11 +19,13 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
 
   // Parse JSON strings from multipart/form-data
   let doctors = [];
+  let salesUsers = [];
   let campHead = { name: '', email: '', phone: '' };
   let passwordSettings = { mode: 'auto' };
 
   // JSON fields are already parsed by middleware
   doctors = req.body.doctors || [];
+  salesUsers = req.body.salesUsers || [];
   campHead = req.body.campHead || { name: '', email: '', phone: '' };
 
   if (req.body.passwordSettings) {
@@ -128,6 +130,30 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
     })
   );
 
+  // Create Sales users
+  const salesUserResults = await Promise.all(
+    salesUsers.map(async (salesUser: any) => {
+      const salesPassword = isAutoGenerate
+        ? nanoid(12)
+        : (passwordSettings as any).salesPasswords?.[salesUser.email] || nanoid(12);
+
+      const salesUserEntity = userRepo.create({
+        role: UserRole.SALES,
+        name: salesUser.name,
+        email: salesUser.email,
+        phone: salesUser.phone,
+        passwordHash: await bcrypt.hash(salesPassword, 10),
+        campId: camp.id,
+        isActive: true
+      });
+      return {
+        user: await userRepo.save(salesUserEntity),
+        tempPassword: salesPassword,
+        name: salesUser.name
+      };
+    })
+  );
+
   // TODO: Send credentials via email/WhatsApp
   // Integration point: sendEmail() or sendWhatsApp()
 
@@ -142,6 +168,11 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
       name: d.name,
       email: d.user.email,
       tempPassword: d.tempPassword
+    })),
+    salesCredentials: salesUserResults.map(s => ({
+      name: s.name,
+      email: s.user.email,
+      tempPassword: s.tempPassword
     }))
   });
 };
@@ -438,7 +469,10 @@ export const deleteCamp = async (req: AuthRequest, res: Response) => {
     }
 
     // Delete all related records first to avoid foreign key constraints
-    // Note: This cascade delete handles Users, Visitors, Visits, Consultations, Attachments, WhatsApp logs
+    // Note: This cascade delete handles Users, Visitors, Visits, Consultations, Attachments, WhatsApp logs, FollowUps
+    
+    // Delete follow-ups for this camp
+    await queryRunner.query('DELETE FROM follow_ups WHERE "campId" = $1', [campId]);
     
     // Delete users associated with this camp
     await queryRunner.query('DELETE FROM users WHERE "campId" = $1', [campId]);
@@ -469,4 +503,123 @@ export const deleteCamp = async (req: AuthRequest, res: Response) => {
   } finally {
     await queryRunner.release();
   }
+};
+
+export const getCampSalesUsers = async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { campId } = req.params;
+  const userRepo = AppDataSource.getRepository(User);
+
+  const salesUsers = await userRepo.find({
+    where: {
+      campId,
+      role: UserRole.SALES
+    },
+    select: ['id', 'name', 'email', 'phone', 'campId', 'isActive', 'createdAt']
+  });
+
+  res.json({ salesUsers });
+};
+
+export const addSalesUser = async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { campId } = req.params;
+  const { name, email, phone, passwordMode, manualPassword } = req.body;
+
+  const campRepo = AppDataSource.getRepository(Camp);
+  const userRepo = AppDataSource.getRepository(User);
+
+  const camp = await campRepo.findOne({ where: { id: campId } });
+  if (!camp) {
+    return res.status(404).json({ message: 'Camp not found' });
+  }
+
+  // Check for duplicate email
+  const existing = await userRepo.findOne({ where: { email } });
+  if (existing) {
+    return res.status(400).json({ message: 'A user with this email already exists' });
+  }
+
+  const isManual = passwordMode === 'manual';
+  const tempPassword = isManual ? manualPassword : nanoid(12);
+
+  if (isManual && (!manualPassword || manualPassword.length < 8)) {
+    return res.status(400).json({ message: 'Manual password must be at least 8 characters long' });
+  }
+
+  const salesUser = userRepo.create({
+    role: UserRole.SALES,
+    name,
+    email,
+    phone,
+    passwordHash: await bcrypt.hash(tempPassword, 10),
+    campId,
+    isActive: true
+  });
+
+  await userRepo.save(salesUser);
+
+  res.status(201).json({
+    message: 'Sales user created successfully',
+    salesUser: {
+      id: salesUser.id,
+      name: salesUser.name,
+      email: salesUser.email,
+      phone: salesUser.phone
+    },
+    tempPassword
+  });
+};
+
+export const resetSalesUserPassword = async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { salesUserId } = req.params;
+  const { passwordMode, manualPassword } = req.body;
+
+  const userRepo = AppDataSource.getRepository(User);
+
+  const salesUser = await userRepo.findOne({
+    where: {
+      id: salesUserId,
+      role: UserRole.SALES
+    }
+  });
+
+  if (!salesUser) {
+    return res.status(404).json({ message: 'Sales user not found' });
+  }
+
+  const isManual = passwordMode === 'manual';
+  const tempPassword = isManual ? manualPassword : nanoid(12);
+
+  if (isManual) {
+    if (!manualPassword || manualPassword.length < 8) {
+      return res.status(400).json({ message: 'Manual password must be at least 8 characters long' });
+    }
+  }
+
+  const hashedPassword = await bcrypt.hash(tempPassword, 10);
+  await userRepo.update(salesUserId, { passwordHash: hashedPassword });
+
+  console.log(`Password reset for sales user ${salesUser.name} (${salesUser.email})`);
+
+  res.json({
+    message: 'Password reset successfully',
+    tempPassword,
+    salesUserName: salesUser.name,
+    salesUserEmail: salesUser.email,
+    passwordMode: passwordMode || 'auto'
+  });
 };

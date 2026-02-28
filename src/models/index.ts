@@ -5,3 +5,4 @@ export * from './Visit';
 export * from './Consultation';
 export * from './Attachment';
 export * from './WhatsAppMessageLog';
+export * from './FollowUp';

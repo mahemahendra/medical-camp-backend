@@ -11,6 +11,7 @@ import authRoutes from './routes/auth';
 import publicRoutes from './routes/public';
 import doctorRoutes from './routes/doctor';
 import campHeadRoutes from './routes/campHead';
+import followUpRoutes from './routes/followUp';
 import telegramRoutes from './routes/telegram';
 
 // Load environment variables
@@ -161,6 +162,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/camp-head', campHeadRoutes);
+app.use('/api/sales', followUpRoutes);
 app.use('/api/telegram', telegramRoutes);
 
 // 404 handler for unknown routes
