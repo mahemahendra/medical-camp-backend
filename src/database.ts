@@ -30,7 +30,7 @@ const databaseUrl = resolvedDatabaseUrl?.split('?')[0];
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: databaseUrl,
-  synchronize: process.env.NODE_ENV === 'development', // Auto-sync in dev only
+  synchronize: process.env.NODE_ENV === 'development' || process.env.TYPEORM_SYNC === 'true',
   logging: process.env.NODE_ENV === 'development',
   ssl: shouldEnableSSL ? { rejectUnauthorized: false } : false,
   entities: [
