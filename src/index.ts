@@ -171,15 +171,16 @@ app.use(notFoundHandler);
 // Error handling
 app.use(errorHandler);
 
-// Initialize database and start server
+// Start listening FIRST so Render health check passes while DB initializes
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Initialize database (table sync may take time on free tier)
 AppDataSource.initialize()
   .then(() => {
-    console.log('Database connected successfully');
-
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
+    console.log('Database connected and synced successfully');
   })
   .catch((error) => {
     console.error('Database connection failed:', error);
