@@ -17,11 +17,11 @@ const resolvedDatabaseUrl =
   process.env.DATABASE_URL || // explicit override always wins
   (isProduction ? process.env.DATABASE_URL_PROD : process.env.DATABASE_URL_LOCAL);
 
-// Enable SSL for Render/external Postgres even in development
+// Enable SSL for external Render Postgres or when explicitly requested
+// Internal Render URLs (dpg-xxx-a without .render.com) do NOT need SSL
 const shouldEnableSSL = Boolean(
   process.env.DATABASE_SSL === 'true' ||
-  resolvedDatabaseUrl?.includes('render.com') ||
-  isProduction
+  resolvedDatabaseUrl?.includes('.render.com')
 );
 
 // Clean DATABASE_URL by removing query parameters (TypeORM doesn't handle them well)
