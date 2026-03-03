@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { AppDataSource } from './database';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { uploadDir } from './middleware/upload';
+import { storageService } from './services/storageService';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
 import publicRoutes from './routes/public';
@@ -33,7 +34,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'", "http://localhost:*"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:", "http://localhost:*", "blob:"],
+      imgSrc: ["'self'", "data:", "https:", "http://localhost:*", "https://storage.googleapis.com", "blob:"],
       scriptSrc: ["'self'"]
     }
   },
@@ -78,9 +79,10 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Serve uploaded files with security headers and CORS
-// This is critical for allowing frontend to load images without ERR_BLOCKED_BY_ORB
-app.use('/uploads', (req, res, next) => {
+// Serve uploaded files locally only when NOT using GCS
+// When GCS is enabled, files are served directly from storage.googleapis.com
+if (storageService.getMode() === 'local') {
+  app.use('/uploads', (req, res, next) => {
   const origin = req.headers.origin;
   
   // Set CORS headers explicitly for all requests
@@ -136,6 +138,7 @@ app.use('/uploads', (req, res, next) => {
     }
   }
 }));
+} // end local-mode static serving
 
 // Health check
 app.get('/health', (req, res) => {

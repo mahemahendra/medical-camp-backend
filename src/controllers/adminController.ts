@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth';
 import { AppDataSource } from '../database';
 import { Camp } from '../models/Camp';
 import { User, UserRole } from '../models/User';
+import { storageService } from '../services/storageService';
 
 /**
  * Admin controller - handles camp and user management
@@ -45,18 +46,25 @@ export const createCamp = async (req: AuthRequest, res: Response) => {
     contactInfo
   } = req.body;
 
-  // Handle file uploads
+  // Handle file uploads (supports local disk and GCS)
   const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
   let logoUrl = '';
   let backgroundImageUrl = '';
+  const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
 
   if (files) {
     if (files.logo && files.logo[0]) {
-      logoUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.logo[0].filename}`;
+      const result = await storageService.uploadFromDisk(
+        files.logo[0].path, files.logo[0].originalname, files.logo[0].mimetype, backendUrl
+      );
+      logoUrl = result.fileUrl;
     }
 
     if (files.backgroundImage && files.backgroundImage[0]) {
-      backgroundImageUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.backgroundImage[0].filename}`;
+      const result = await storageService.uploadFromDisk(
+        files.backgroundImage[0].path, files.backgroundImage[0].originalname, files.backgroundImage[0].mimetype, backendUrl
+      );
+      backgroundImageUrl = result.fileUrl;
     }
   }
 
@@ -425,16 +433,23 @@ export const updateCamp = async (req: AuthRequest, res: Response) => {
     updates.endTime = new Date(req.body.endTime);
   }
 
-  // Handle file uploads if provided
+  // Handle file uploads if provided (supports local disk and GCS)
   const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+  const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
 
   if (files) {
     if (files.logo && files.logo[0]) {
-      updates.logoUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.logo[0].filename}`;
+      const result = await storageService.uploadFromDisk(
+        files.logo[0].path, files.logo[0].originalname, files.logo[0].mimetype, backendUrl
+      );
+      updates.logoUrl = result.fileUrl;
     }
 
     if (files.backgroundImage && files.backgroundImage[0]) {
-      updates.backgroundImageUrl = `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${files.backgroundImage[0].filename}`;
+      const result = await storageService.uploadFromDisk(
+        files.backgroundImage[0].path, files.backgroundImage[0].originalname, files.backgroundImage[0].mimetype, backendUrl
+      );
+      updates.backgroundImageUrl = result.fileUrl;
     }
   }
 

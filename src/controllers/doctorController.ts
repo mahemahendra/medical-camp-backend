@@ -11,8 +11,9 @@ import { Like } from 'typeorm';
 import path from 'path';
 import fs from 'fs';
 import { sendConsultationCompleteTelegram } from '../services/telegramService';
+import { storageService } from '../services/storageService';
 
-// Get upload directory path
+// Get upload directory path (used as fallback for local mode)
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
 
 // Helper to get the backend base URL from request
@@ -428,17 +429,12 @@ export const deleteAttachment = async (req: AuthRequest, res: Response) => {
     return res.status(404).json({ error: 'Attachment not found' });
   }
 
-  // Delete file from filesystem
-  const filename = path.basename(attachment.fileUrl);
-  const filePath = path.resolve(uploadDir, filename);
-
-  if (fs.existsSync(filePath)) {
-    try {
-      fs.unlinkSync(filePath);
-    } catch (error) {
-      console.error('Error deleting file:', error);
-      // Continue with database deletion even if file deletion fails
-    }
+  // Delete file from storage (GCS or local)
+  try {
+    await storageService.deleteFile(attachment.fileUrl);
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    // Continue with database deletion even if file deletion fails
   }
 
   // Delete from database
@@ -460,11 +456,15 @@ export const uploadAttachments = async (req: AuthRequest, res: Response) => {
   const attachmentRepo = AppDataSource.getRepository(Attachment);
   const attachments = await Promise.all(
     files.map(async (file) => {
+      // Upload to GCS or keep local, get public URL
+      const result = await storageService.uploadFromDisk(
+        file.path, file.originalname, file.mimetype, backendUrl
+      );
       const attachment = attachmentRepo.create({
         campId,
         visitId,
         fileName: file.originalname,
-        fileUrl: `${backendUrl}/uploads/${file.filename}`,
+        fileUrl: result.fileUrl,
         type: type || AttachmentType.DOCUMENT,
         fileSize: file.size,
         mimeType: file.mimetype

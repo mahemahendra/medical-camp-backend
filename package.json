@@ -15,6 +15,7 @@
     "check:telegram": "node check-telegram-config.js"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.19.0",
     "@types/form-data": "^2.2.1",
     "axios": "^1.13.4",
     "bcrypt": "^5.1.1",
